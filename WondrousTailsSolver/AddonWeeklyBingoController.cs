@@ -26,6 +26,10 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
     private const string ProbabilityPrefix = "Line Chances: ";
     private const string AveragePrefix = "Shuffle Average: ";
 
+    // Fallback line spacing in pixels when the addon's text node reports zero.
+    // 16px matches the addon's resolved font size in default UI scale.
+    private const byte FallbackLineSpacing = 16;
+
     private string? capturedOriginalText;
     private ushort capturedHeight;
     private bool hasCapturedLayout;
@@ -109,7 +113,7 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
         builder.AddText("\r\r");
         builder.Append(probability);
 
-        var lineSpacing = node->LineSpacing > 0 ? node->LineSpacing : (byte)16;
+        var lineSpacing = node->LineSpacing > 0 ? node->LineSpacing : FallbackLineSpacing;
         var injectedLines = CountLines(probability.TextValue) + 1;
         var desiredHeight = (ushort)(capturedHeight + (lineSpacing * injectedLines));
         if (node->GetHeight() != desiredHeight) {
