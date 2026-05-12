@@ -1,104 +1,156 @@
-﻿using System.Linq;
-using System.Numerics;
+using System;
+using System.Linq;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using KamiToolKit;
-using KamiToolKit.Classes;
-using KamiToolKit.Classes.Controllers;
-using KamiToolKit.Extensions;
-using KamiToolKit.Nodes;
 
 namespace WondrousTailsSolver;
 
-public unsafe class AddonWeeklyBingoController : AddonController<AddonWeeklyBingo> {
-    private TextNode? probabilityTextNode;
+/// <summary>
+/// Listens to the Wondrous Tails addon lifecycle and injects probability
+/// information into its instruction text node. Replaces the KamiToolKit-based
+/// implementation with direct Dalamud and FFXIVClientStructs APIs.
+/// </summary>
+public sealed unsafe class AddonWeeklyBingoController : IDisposable {
+    private const string AddonName = "WeeklyBingo";
 
-    public AddonWeeklyBingoController(IDalamudPluginInterface pluginInterface) : base("WeeklyBingo") {
-        KamiToolKitLibrary.Initialize(pluginInterface);
-        OnAttach += AttachNodes;
-        OnRefresh += AddonRefresh;
-        OnUpdate += AddonRefresh;
-        OnDetach += DetachNodes;
-        Enable();
+    // The instruction text node in the Wondrous Tails addon. Identified by
+    // the original implementation (MidoriKami) and assumed stable; falling
+    // back to a content scan would require client-language-aware matching.
+    private const uint InstructionTextNodeId = 34;
+
+    private const string ProbabilityPrefix = "Line Chances: ";
+    private const string AveragePrefix = "Shuffle Average: ";
+
+    private string? capturedOriginalText;
+    private ushort capturedHeight;
+    private bool hasCapturedLayout;
+    private bool disposed;
+
+    public AddonWeeklyBingoController(IDalamudPluginInterface pluginInterface) {
+        DalamudServices.Initialize(pluginInterface);
+
+        DalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostSetup, AddonName, OnAddonEvent);
+        DalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PreFinalize, AddonName, OnAddonEvent);
+        DalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostRefresh, AddonName, OnAddonEvent);
+        DalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostRequestedUpdate, AddonName, OnAddonEvent);
+        DalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostUpdate, AddonName, OnAddonEvent);
+
+        var current = GetOpenAddon();
+        if (current is not null) {
+            AddonRefresh(current);
+        }
     }
 
-    private void AttachNodes(AddonWeeklyBingo* addon) {
-        var existingTextNode = addon->GetTextNodeById(34);
-        if (existingTextNode is null) return;
-        
-        
-        // Shrink existing node, the game doesn't need that space anyway.
-        existingTextNode->SetHeight((ushort)(existingTextNode->GetHeight() * 2.0f / 3.0f));
+    public void Dispose() {
+        if (disposed) return;
 
-        // Add new custom text node to ui
-        probabilityTextNode = new TextNode {
-            NodeFlags = NodeFlags.Enabled | NodeFlags.Visible,
-            Size = new Vector2(existingTextNode->GetWidth(), existingTextNode->GetHeight()),
-            Position = new Vector2(existingTextNode->GetXFloat(), existingTextNode->GetYFloat() + existingTextNode->GetHeight()),
-            TextColor = existingTextNode->TextColor.ToVector4(),
-            TextOutlineColor = existingTextNode->EdgeColor.ToVector4(),
-            BackgroundColor = existingTextNode->BackgroundColor.ToVector4(),
-            FontSize = existingTextNode->FontSize,
-            LineSpacing = existingTextNode->LineSpacing,
-            CharSpacing = existingTextNode->CharSpacing,
-            TextFlags = TextFlags.MultiLine | (TextFlags)existingTextNode->TextFlags,
-            String = System.PerfectTails.SolveAndGetProbabilitySeString().TextValue,
-        };
+        DalamudServices.AddonLifecycle.UnregisterListener(OnAddonEvent);
 
-        probabilityTextNode.AttachNode((AtkResNode*)existingTextNode, NodePosition.AfterTarget);
+        var current = GetOpenAddon();
+        if (current is not null) {
+            RestoreOriginal(current);
+        }
+
+        ClearCapturedState();
+        disposed = true;
     }
-    
+
+    private void OnAddonEvent(AddonEvent type, AddonArgs args) {
+        var addon = (AddonWeeklyBingo*)args.Addon.Address;
+
+        switch (type) {
+            case AddonEvent.PreFinalize:
+                // Mutating addon nodes during finalize is unsafe; drop captured state
+                // so the next setup recaptures from a fresh node.
+                ClearCapturedState();
+                return;
+            case AddonEvent.PostSetup:
+            case AddonEvent.PostRefresh:
+            case AddonEvent.PostRequestedUpdate:
+            case AddonEvent.PostUpdate:
+                AddonRefresh(addon);
+                return;
+        }
+    }
+
     private void AddonRefresh(AddonWeeklyBingo* addon) {
-        foreach (var index in Enumerable.Range(0, 16)) {
+        for (var index = 0; index < 16; index++) {
             System.PerfectTails.GameState[index] = PlayerState.Instance()->IsWeeklyBingoStickerPlaced(index);
         }
 
-        if (probabilityTextNode is not null) {
-            var existingTextNode = addon->GetTextNodeById(34);
-            if (existingTextNode is null) return;
-            var nodeText = SeString.Parse(existingTextNode->NodeText);
+        UpdateInstructionText(addon);
+    }
 
-            var lineBreakIndex = -1;
-            for (var index = 0; index < nodeText.Payloads.Count; index++)
-            {
-                if (index > 0)
-                {
-                    var previousPayload = nodeText.Payloads[index - 1];
-                    var payload = nodeText.Payloads[index];
+    private void UpdateInstructionText(AddonWeeklyBingo* addon) {
+        var node = addon->GetTextNodeById(InstructionTextNodeId);
+        if (node is null) return;
 
-                    if (previousPayload.Type is PayloadType.NewLine && payload.Type is PayloadType.NewLine)
-                    {
-                        lineBreakIndex = index - 1;
-                        break;
-                    }
-                }
-            }
+        var currentText = SeString.Parse(node->NodeText).TextValue;
+        if (string.IsNullOrEmpty(currentText)) return;
 
-            if (lineBreakIndex is not -1)
-            {
-                var newString = new SeStringBuilder();
+        if (!hasCapturedLayout) {
+            capturedOriginalText = currentText;
+            capturedHeight = node->GetHeight();
+            hasCapturedLayout = true;
+        }
 
-                for (var index = 0; index < lineBreakIndex; index++)
-                {
-                    newString.Add(nodeText.Payloads[index]);
-                }
-                existingTextNode->SetText(newString.Encode());
-            }
+        node->TextFlags |= TextFlags.MultiLine;
 
-            probabilityTextNode.String = System.PerfectTails.SolveAndGetProbabilitySeString().TextValue;
+        var baseText = StripPreviousInjection(currentText);
+        var probability = System.PerfectTails.SolveAndGetProbabilitySeString();
+
+        var builder = new SeStringBuilder();
+        builder.AddText(baseText);
+        builder.AddText("\r\r");
+        builder.Append(probability);
+
+        var lineSpacing = node->LineSpacing > 0 ? node->LineSpacing : (byte)16;
+        var injectedLines = CountLines(probability.TextValue) + 1;
+        var desiredHeight = (ushort)(capturedHeight + (lineSpacing * injectedLines));
+        if (node->GetHeight() != desiredHeight) {
+            node->SetHeight(desiredHeight);
+        }
+
+        node->SetText(builder.Encode());
+    }
+
+    private void RestoreOriginal(AddonWeeklyBingo* addon) {
+        if (!hasCapturedLayout || capturedOriginalText is null) return;
+
+        var node = addon->GetTextNodeById(InstructionTextNodeId);
+        if (node is null) return;
+
+        node->SetText(capturedOriginalText);
+        if (capturedHeight > 0) {
+            node->SetHeight(capturedHeight);
         }
     }
-    
-    private void DetachNodes(AddonWeeklyBingo* addon) {
-        var existingTextNode = addon->GetTextNodeById(34);
-        if (existingTextNode is not null) {
-            existingTextNode->SetHeight((ushort)(existingTextNode->GetHeight() * 3.0f / 2.0f));
-        }
 
-        probabilityTextNode?.Dispose();
-        probabilityTextNode = null;
+    private void ClearCapturedState() {
+        capturedOriginalText = null;
+        capturedHeight = 0;
+        hasCapturedLayout = false;
+    }
+
+    private static string StripPreviousInjection(string text) {
+        var lines = text
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => !line.StartsWith(ProbabilityPrefix, StringComparison.Ordinal)
+                        && !line.StartsWith(AveragePrefix, StringComparison.Ordinal))
+            .ToArray();
+        return string.Join("\r", lines);
+    }
+
+    private static int CountLines(string text)
+        => Math.Max(1, text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Length);
+
+    private static AddonWeeklyBingo* GetOpenAddon() {
+        var address = DalamudServices.GameGui.GetAddonByName(AddonName).Address;
+        return address == nint.Zero ? null : (AddonWeeklyBingo*)address;
     }
 }

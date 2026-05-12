@@ -6,9 +6,5 @@
     <PackageProjectUrl>https://github.com/MidoriKami/EzWondrousTails</PackageProjectUrl>
 	  <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\KamiToolKit\KamiToolKit.csproj" />
-  </ItemGroup>
 </Project>
 
