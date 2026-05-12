@@ -3,7 +3,7 @@
   "Name": "Ascended ezWondrousTails",
   "InternalName": "ascended-ezwondroustails",
   "RepoUrl": "https://github.com/jkleinne/ascended-EzWondrousTails",
-  "Description": "Personal fork of MidoriKami's EzWondrousTails, ported to Dalamud API 15 after the upstream repository was archived. Injects row probabilities and shuffle averages into the Wondrous Tails journal, and adds a standalone plugin window so the same information is reachable when the journal isn't open.",
+  "Description": "Personal fork of MidoriKami's EzWondrousTails, ported to Dalamud API 15 after the upstream repository was archived. Injects row probabilities, exact shuffle averages, and shuffle advice into the Wondrous Tails journal, and adds a standalone plugin window so the same information is reachable when the journal isn't open.",
   "ApplicableVersion": "any",
   "DalamudApiLevel": 15,
   "TestingDalamudApiLevel": 15,
