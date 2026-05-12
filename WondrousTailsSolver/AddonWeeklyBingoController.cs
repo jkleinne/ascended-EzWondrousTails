@@ -4,7 +4,6 @@ using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
@@ -82,10 +81,7 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
     }
 
     private void AddonRefresh(AddonWeeklyBingo* addon) {
-        for (var index = 0; index < 16; index++) {
-            System.PerfectTails.GameState[index] = PlayerState.Instance()->IsWeeklyBingoStickerPlaced(index);
-        }
-
+        System.PerfectTails.RefreshGameState();
         UpdateInstructionText(addon);
     }
 

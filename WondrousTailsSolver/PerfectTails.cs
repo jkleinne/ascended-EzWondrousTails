@@ -154,6 +154,25 @@ public sealed partial class PerfectTails {
 /// Getting formatted results
 /// </summary>
 public sealed unsafe partial class PerfectTails {
+    /// <summary>
+    /// Refreshes <see cref="GameState"/> from the live player state. Call before
+    /// invoking <see cref="SolveAndGetProbabilitySeString"/> or
+    /// <see cref="GetProbabilityText"/> from a context that isn't already syncing
+    /// state (e.g. the plugin's main window).
+    /// </summary>
+    public void RefreshGameState() {
+        for (var index = 0; index < 16; index++) {
+            GameState[index] = PlayerState.Instance()->IsWeeklyBingoStickerPlaced(index);
+        }
+    }
+
+    /// <summary>
+    /// Plain-text probability output for ImGui display. SeString carriage
+    /// returns are normalized to line feeds so ImGui wraps cleanly.
+    /// </summary>
+    public string GetProbabilityText()
+        => SolveAndGetProbabilitySeString().TextValue.Replace('\r', '\n');
+
     public SeString SolveAndGetProbabilitySeString() {
         var stickersPlaced = PlayerState.Instance()->WeeklyBingoNumPlacedStickers;
 
