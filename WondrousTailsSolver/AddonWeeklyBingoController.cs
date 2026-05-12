@@ -23,6 +23,7 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
 
     private const string ProbabilityPrefix = "Line Chances: ";
     private const string AveragePrefix = "Shuffle Average: ";
+    private const string AdvicePrefix = "Shuffle Advice: ";
 
     // Fallback line spacing in pixels when the addon's text node reports zero.
     // 16px matches the addon's resolved font size in default UI scale.
@@ -140,7 +141,8 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
         var lines = text
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .Where(line => !line.StartsWith(ProbabilityPrefix, StringComparison.Ordinal)
-                        && !line.StartsWith(AveragePrefix, StringComparison.Ordinal))
+                        && !line.StartsWith(AveragePrefix, StringComparison.Ordinal)
+                        && !line.StartsWith(AdvicePrefix, StringComparison.Ordinal))
             .ToArray();
         return string.Join("\r", lines);
     }
