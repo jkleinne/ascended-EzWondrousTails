@@ -1,14 +1,9 @@
-<Project Sdk="Dalamud.NET.Sdk/14.0.1">
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <PackageId>WondrousTailsSolver</PackageId>
-    <Name>ezWondrousTails</Name>
-    <InternalName>WondrousTailsSolver</InternalName>
-    <Version>3.3.0.0</Version>
+    <AssemblyName>ascended-ezwondroustails</AssemblyName>
+    <Description>Adds row probabilities to the Wondrous Tails display.</Description>
     <Authors>daemitus,MidoriKami,jkleinne</Authors>
-    <Punchline>Adds row probabilities to the Wondrous Tails display.</Punchline>
-    <Description>This plugin prints the probability of getting a row in Wondrous Tails to the in-game display along with the average probability of what would happen if you shuffled.</Description>
-    <Tags>wondrous-tails;probability;utility</Tags>
-    <DalamudApiLevel>15</DalamudApiLevel>
+    <Version>1.0.0.0</Version>
     <PackageProjectUrl>https://github.com/jkleinne/ascended-EzWondrousTails</PackageProjectUrl>
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
