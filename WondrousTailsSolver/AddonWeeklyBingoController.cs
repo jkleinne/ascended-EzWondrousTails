@@ -12,8 +12,7 @@ namespace WondrousTailsSolver;
 
 /// <summary>
 /// Listens to the Wondrous Tails addon lifecycle and injects probability
-/// information into its instruction text node. Replaces the KamiToolKit-based
-/// implementation with direct Dalamud and FFXIVClientStructs APIs.
+/// information into its instruction text node.
 /// </summary>
 public sealed unsafe class AddonWeeklyBingoController : IDisposable {
     private const string AddonName = "WeeklyBingo";
