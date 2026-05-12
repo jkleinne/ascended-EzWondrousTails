@@ -1,4 +1,4 @@
-author: daemitus, MidoriKami
+author: daemitus, MidoriKami, jkleinne
 name: ezWondrousTails
 punchline: Adds row probabilities to the Wondrous Tails display.
 description: This plugin prints the probability of getting a row in Wondrous Tails to the in-game display along with the average probability of what would happen if you shuffled.
