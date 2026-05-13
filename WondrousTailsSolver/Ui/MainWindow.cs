@@ -13,10 +13,18 @@ internal sealed unsafe class MainWindow : Window {
     private const string Title = "Wondrous Tails Solver";
     private const string FilledCellGlyph = "■";
     private const string EmptyCellGlyph = "□";
+    private const int BoardGridSize = 4;
+    private const int StickerCountMaximum = 9;
+    private const float MinimumWidth = 320;
+    private const float MinimumHeight = 220;
 
-    public MainWindow() : base(Title) {
+    private readonly PerfectTails perfectTails;
+
+    internal MainWindow(PerfectTails perfectTails) : base(Title) {
+        this.perfectTails = perfectTails;
+
         SizeConstraints = new WindowSizeConstraints {
-            MinimumSize = new Vector2(320, 220),
+            MinimumSize = new Vector2(MinimumWidth, MinimumHeight),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
     }
@@ -28,20 +36,20 @@ internal sealed unsafe class MainWindow : Window {
             return;
         }
 
-        System.PerfectTails.RefreshGameState();
+        perfectTails.RefreshGameState();
 
-        ImGui.TextUnformatted($"Stickers placed: {playerState->WeeklyBingoNumPlacedStickers}/9");
+        ImGui.TextUnformatted($"Stickers placed: {playerState->WeeklyBingoNumPlacedStickers}/{StickerCountMaximum}");
         ImGui.TextUnformatted($"Second Chance points: {playerState->WeeklyBingoNumSecondChancePoints}");
         ImGui.Separator();
 
-        ImGui.TextWrapped(System.PerfectTails.GetProbabilityText());
+        ImGui.TextWrapped(perfectTails.GetProbabilityText());
         ImGui.Spacing();
         ImGui.TextUnformatted("Board state");
 
-        for (var row = 0; row < 4; row++) {
+        for (var row = 0; row < BoardGridSize; row++) {
             var line = string.Empty;
-            for (var column = 0; column < 4; column++) {
-                var filled = System.PerfectTails.GameState[(row * 4) + column];
+            for (var column = 0; column < BoardGridSize; column++) {
+                var filled = perfectTails.GameState[(row * BoardGridSize) + column];
                 line += (filled ? FilledCellGlyph : EmptyCellGlyph) + " ";
             }
             ImGui.TextUnformatted(line.TrimEnd());

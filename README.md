@@ -14,6 +14,7 @@ This is a maintained fork of MidoriKami's archived EzWondrousTails plugin, updat
 * Adds shuffle advice that compares the current three-line chance against the exact average.
 * Displays the same information in a standalone plugin window when the journal is not open.
 * Shows sticker count, Second Chance points, and a simple board state preview in the standalone window.
+* Provides settings for journal injection, visible probability sections, colored journal text, and percentage precision.
 
 Shuffle averages and advice are available while the board has 3 through 7 stickers, matching the range where Wondrous Tails shuffle can be used. If the character has fewer than 2 Second Chance points, the advice reports that requirement instead of recommending a shuffle.
 
@@ -35,7 +36,7 @@ Open a Wondrous Tails journal in game. The plugin appends three lines to the jou
 * `Shuffle Average`, the exact average line chances for all shuffled boards with the same number of stickers.
 * `Shuffle Advice`, a keep, neutral, or shuffle recommendation based on the current three-line chance compared with the shuffle average.
 
-You can also open the plugin's main window from Dalamud's plugin UI. The settings window currently has no configurable options.
+You can also open the plugin's main window from Dalamud's plugin UI. The settings window lets you enable or disable the journal overlay, choose which probability sections are shown, turn colored journal text on or off, change percentage precision, and view the current journal status.
 
 ## Development
 

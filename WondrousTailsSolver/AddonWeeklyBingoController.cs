@@ -12,7 +12,7 @@ namespace WondrousTailsSolver;
 /// Listens to the Wondrous Tails addon lifecycle and injects probability
 /// information into its instruction text node.
 /// </summary>
-public sealed unsafe class AddonWeeklyBingoController : IDisposable {
+internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
     private const string AddonName = "WeeklyBingo";
 
     // The instruction text node in the Wondrous Tails addon. Identified by
@@ -23,6 +23,7 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
     private const string ProbabilityPrefix = "Line Chances: ";
     private const string AveragePrefix = "Shuffle Average: ";
     private const string AdvicePrefix = "Shuffle Advice: ";
+    private const string ErrorPrefix = "Wondrous Tails Solver: ";
     private const string AdviceLineContinuation = "line)";
     private const string AdviceThreeLineContinuation = "3 line)";
     private const string AdviceDeltaFragment = "pp vs average";
@@ -32,13 +33,26 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
     // Fallback line spacing in pixels when the addon's text node reports zero.
     // 16px matches the addon's resolved font size in default UI scale.
     private const byte FallbackLineSpacing = 16;
+    private const int SeparatorLineCount = 1;
+    private const int MinimumLineCount = 1;
+    private const byte NoLineSpacing = 0;
+    private const ushort NoCapturedHeight = 0;
 
+    private readonly PerfectTails perfectTails;
+    private readonly PluginConfiguration configuration;
     private string? capturedOriginalText;
     private ushort capturedHeight;
+    private TextFlags capturedTextFlags;
     private bool hasCapturedLayout;
     private bool disposed;
 
-    public AddonWeeklyBingoController(IDalamudPluginInterface pluginInterface) {
+    internal AddonWeeklyBingoController(
+        IDalamudPluginInterface pluginInterface,
+        PerfectTails perfectTails,
+        PluginConfiguration configuration) {
+        this.perfectTails = perfectTails;
+        this.configuration = configuration;
+
         DalamudServices.Initialize(pluginInterface);
 
         DalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostSetup, AddonName, OnAddonEvent);
@@ -86,7 +100,10 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
     }
 
     private void AddonRefresh(AddonWeeklyBingo* addon) {
-        System.PerfectTails.RefreshGameState();
+        if (configuration.EnableJournalOverlay && configuration.HasAnyDisplaySectionEnabled) {
+            perfectTails.RefreshGameState();
+        }
+
         UpdateInstructionText(addon);
     }
 
@@ -102,20 +119,30 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
         if (!hasCapturedLayout) {
             capturedOriginalText = baseText;
             capturedHeight = node->GetHeight();
+            capturedTextFlags = node->TextFlags;
             hasCapturedLayout = true;
+        }
+
+        if (!configuration.EnableJournalOverlay || !configuration.HasAnyDisplaySectionEnabled) {
+            RestoreOriginal(addon);
+            return;
         }
 
         node->TextFlags |= TextFlags.MultiLine;
 
-        var probability = System.PerfectTails.SolveAndGetProbabilitySeString();
+        var probability = perfectTails.SolveAndGetProbabilitySeString();
+        if (string.IsNullOrWhiteSpace(probability.TextValue)) {
+            RestoreOriginal(addon);
+            return;
+        }
 
         var builder = new SeStringBuilder();
         builder.AddText(baseText);
         builder.AddText("\r\r");
         builder.Append(probability);
 
-        var lineSpacing = node->LineSpacing > 0 ? node->LineSpacing : FallbackLineSpacing;
-        var injectedLines = CountLines(probability.TextValue) + 1;
+        var lineSpacing = node->LineSpacing > NoLineSpacing ? node->LineSpacing : FallbackLineSpacing;
+        var injectedLines = CountLines(probability.TextValue) + SeparatorLineCount;
         var desiredHeight = (ushort)(capturedHeight + (lineSpacing * injectedLines));
         if (node->GetHeight() != desiredHeight) {
             node->SetHeight(desiredHeight);
@@ -131,14 +158,16 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
         if (node is null) return;
 
         node->SetText(capturedOriginalText);
-        if (capturedHeight > 0) {
+        node->TextFlags = capturedTextFlags;
+        if (capturedHeight > NoCapturedHeight) {
             node->SetHeight(capturedHeight);
         }
     }
 
     private void ClearCapturedState() {
         capturedOriginalText = null;
-        capturedHeight = 0;
+        capturedHeight = NoCapturedHeight;
+        capturedTextFlags = default;
         hasCapturedLayout = false;
     }
 
@@ -162,7 +191,8 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
     private static bool IsInjectedLine(string line)
         => line.StartsWith(ProbabilityPrefix, StringComparison.Ordinal)
         || line.StartsWith(AveragePrefix, StringComparison.Ordinal)
-        || line.StartsWith(AdvicePrefix, StringComparison.Ordinal);
+        || line.StartsWith(AdvicePrefix, StringComparison.Ordinal)
+        || line.StartsWith(ErrorPrefix, StringComparison.Ordinal);
 
     private static bool IsInjectedContinuationLine(string line) {
         var trimmedLine = line.Trim();
@@ -174,7 +204,7 @@ public sealed unsafe class AddonWeeklyBingoController : IDisposable {
     }
 
     private static int CountLines(string text)
-        => Math.Max(1, text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Length);
+        => Math.Max(MinimumLineCount, text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Length);
 
     private static AddonWeeklyBingo* GetOpenAddon() {
         var address = DalamudServices.GameGui.GetAddonByName(AddonName).Address;
