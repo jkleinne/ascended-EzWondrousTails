@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Dalamud.Game.Text.SeStringHandling;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
@@ -9,43 +10,68 @@ namespace WondrousTailsSolver;
 /// <summary>
 /// Minigame solver.
 /// </summary>
-public sealed partial class PerfectTails {
+internal sealed partial class PerfectTails {
+    private const double NoChance = 0;
+    private const double FullChance = 1;
+    private const double FullChanceTolerance = 0.1;
     private const double SampleBound = 0.05;
-    private const int GoodColor = 67;
-    private const int NeutralColor = 66;
-    private const int WarningColor = 561;
-    private const int ErrorColor = 704;
-    private const int StrongGlowColor = 2;
+    private const ushort GoodColor = 67;
+    private const ushort NeutralColor = 66;
+    private const ushort WarningColor = 561;
+    private const ushort ErrorColor = 704;
+    private const ushort StrongGlowColor = 2;
 
-    private readonly WondrousTailsBoardSolver boardSolver = new();
+    private readonly PluginConfiguration configuration;
+    private readonly WondrousTailsBoardSolver boardSolver;
 
-    public readonly bool[] GameState = new bool[WondrousTailsBoardSolver.CellCount];
+    internal readonly bool[] GameState = new bool[WondrousTailsBoardSolver.CellCount];
+
+    internal PerfectTails(PluginConfiguration configuration, WondrousTailsBoardSolver boardSolver) {
+        this.configuration = configuration;
+        this.boardSolver = boardSolver;
+    }
 }
 
 /// <summary>
 /// Getting formatted results
 /// </summary>
-public sealed unsafe partial class PerfectTails {
+internal sealed unsafe partial class PerfectTails {
+    private const string EmptyConfiguredOutputText = "No configured probability sections are available for this board state.";
+    private const string ErrorPrefix = "Wondrous Tails Solver: ";
+
     /// <summary>
     /// Refreshes <see cref="GameState"/> from the live player state. Call before
     /// invoking <see cref="SolveAndGetProbabilitySeString"/> or
     /// <see cref="GetProbabilityText"/> from a context that isn't already syncing
     /// state (e.g. the plugin's main window).
     /// </summary>
-    public void RefreshGameState() {
-        for (var index = 0; index < WondrousTailsBoardSolver.CellCount; index++) {
-            GameState[index] = PlayerState.Instance()->IsWeeklyBingoStickerPlaced(index);
+    internal bool RefreshGameState() {
+        var playerState = PlayerState.Instance();
+        if (playerState is null) {
+            return false;
         }
+
+        for (var index = 0; index < WondrousTailsBoardSolver.CellCount; index++) {
+            GameState[index] = playerState->IsWeeklyBingoStickerPlaced(index);
+        }
+
+        return true;
     }
 
     /// <summary>
     /// Plain-text probability output for ImGui display. SeString carriage
     /// returns are normalized to line feeds so ImGui wraps cleanly.
     /// </summary>
-    public string GetProbabilityText()
-        => SolveAndGetProbabilitySeString().TextValue.Replace('\r', '\n');
+    internal string GetProbabilityText() {
+        var text = SolveAndGetProbabilitySeString().TextValue.Replace('\r', '\n');
+        return string.IsNullOrWhiteSpace(text) ? EmptyConfiguredOutputText : text;
+    }
 
-    public SeString SolveAndGetProbabilitySeString() {
+    internal SeString SolveAndGetProbabilitySeString() {
+        if (!configuration.HasAnyDisplaySectionEnabled) {
+            return new SeStringBuilder().Build();
+        }
+
         var playerState = PlayerState.Instance();
         if (playerState is null) {
             return BuildErrorSeString();
@@ -60,30 +86,58 @@ public sealed unsafe partial class PerfectTails {
         }
 
         var baseline = boardSolver.GetShuffleBaseline(stickersPlaced);
-        var valuePayloads = this.StringFormatDoubles(values.ToArray());
-        var seString = new SeStringBuilder()
-            .AddText("Line Chances: ");
+        var valuePayloads = StringFormatDoubles(values.ToArray());
+        var seString = new SeStringBuilder();
+        var hasPreviousSection = false;
 
+        if (configuration.ShowLineChances) {
+            AppendSectionBreak(seString, ref hasPreviousSection);
+            seString.AddText("Line Chances: ");
+            AppendLineChances(seString, values, baseline, valuePayloads);
+        }
+
+        if (baseline is { } shuffleBaseline && configuration.ShowShuffleAverage) {
+            AppendSectionBreak(seString, ref hasPreviousSection);
+            seString.AddText("Shuffle Average: ");
+            seString.AddText(string.Join(" ", StringFormatDoubles(shuffleBaseline.ToArray())));
+        }
+
+        if (baseline is not null && configuration.ShowShuffleAdvice) {
+            AppendSectionBreak(seString, ref hasPreviousSection);
+            AppendShuffleAdvice(seString, boardSolver.GetShuffleAdvice(this.GameState, stickersPlaced, secondChancePoints));
+        }
+
+        return seString.Build();
+    }
+
+    private void AppendLineChances(
+        SeStringBuilder seString,
+        LineChances values,
+        LineChances? baseline,
+        string[] valuePayloads) {
         if (baseline is { } shuffleBaseline) {
             var baselineValues = shuffleBaseline.ToArray();
             var chanceValues = values.ToArray();
-            foreach (var (value, sample, valuePayload) in Enumerable.Range(0, chanceValues.Length).Select(i => (chanceValues[i], baselineValues[i], valuePayloads[i]))) {
-                var sampleBoundLower = Math.Max(0, sample - SampleBound);
+            for (var index = 0; index < chanceValues.Length; index++) {
+                var value = chanceValues[index];
+                var sample = baselineValues[index];
+                var valuePayload = valuePayloads[index];
+                var sampleBoundLower = Math.Max(NoChance, sample - SampleBound);
 
-                if (Math.Abs(value - 1) < 0.1f) {
-                    seString.AddUiGlow(valuePayload, StrongGlowColor);
+                if (Math.Abs(value - FullChance) < FullChanceTolerance) {
+                    AddGlowOrText(seString, valuePayload, StrongGlowColor);
                 }
-                else if (value < 1 && value >= sample) {
-                    seString.AddUiForeground(valuePayload, GoodColor);
+                else if (value < FullChance && value >= sample) {
+                    AddForegroundOrText(seString, valuePayload, GoodColor);
                 }
                 else if (sample > value && value > sampleBoundLower) {
-                    seString.AddUiForeground(valuePayload, NeutralColor);
+                    AddForegroundOrText(seString, valuePayload, NeutralColor);
                 }
-                else if (sampleBoundLower > value && value > 0) {
-                    seString.AddUiForeground(valuePayload, WarningColor);
+                else if (sampleBoundLower > value && value > NoChance) {
+                    AddForegroundOrText(seString, valuePayload, WarningColor);
                 }
-                else if (value == 0) {
-                    seString.AddUiForeground(valuePayload, ErrorColor);
+                else if (value == NoChance) {
+                    AddForegroundOrText(seString, valuePayload, ErrorColor);
                 }
                 else {
                     seString.AddText(valuePayload);
@@ -91,57 +145,87 @@ public sealed unsafe partial class PerfectTails {
 
                 seString.AddText("  ");
             }
-
-            seString.AddText("\rShuffle Average: ");
-            seString.AddText(string.Join(" ", this.StringFormatDoubles(baselineValues)));
-            AppendShuffleAdvice(seString, boardSolver.GetShuffleAdvice(this.GameState, stickersPlaced, secondChancePoints));
         }
         else {
             seString.AddText(string.Join(" ", valuePayloads));
         }
-        
-        return seString.Build();
     }
 
     private string[] StringFormatDoubles(IEnumerable<double> values)
-        => values.Select(v => $"{v * 100:F2}%").ToArray();
+        => values.Select(FormatPercentage).ToArray();
 
-    private static SeString BuildErrorSeString()
-        => new SeStringBuilder()
-            .AddText("Line Chances: ")
-            .AddUiForeground("error ", ErrorColor)
-            .AddUiForeground("error ", ErrorColor)
-            .AddUiForeground("error ", ErrorColor)
-            .Build();
+    private string FormatPercentage(double value)
+        => (value * 100).ToString($"F{configuration.ProbabilityDecimalPlaces}", CultureInfo.InvariantCulture) + "%";
 
-    private static void AppendShuffleAdvice(SeStringBuilder seString, ShuffleAdvice advice) {
-        seString.AddText("\rShuffle Advice: ");
+    private SeString BuildErrorSeString() {
+        var seString = new SeStringBuilder()
+            .AddText(ErrorPrefix);
+
+        AddForegroundOrText(seString, "error", ErrorColor);
+
+        return seString.Build();
+    }
+
+    private void AppendShuffleAdvice(SeStringBuilder seString, ShuffleAdvice advice) {
+        seString.AddText("Shuffle Advice: ");
 
         switch (advice.Recommendation) {
             case ShuffleRecommendation.NeedSecondChance:
-                seString.AddUiForeground("need 2 Second Chance points", NeutralColor);
+                AddForegroundOrText(seString, "need 2 Second Chance points", NeutralColor);
                 return;
             case ShuffleRecommendation.Shuffle:
-                seString.AddUiForeground("Shuffle", WarningColor);
+                AddForegroundOrText(seString, "Shuffle", WarningColor);
                 break;
             case ShuffleRecommendation.Neutral:
-                seString.AddUiForeground("Neutral", NeutralColor);
+                AddForegroundOrText(seString, "Neutral", NeutralColor);
                 break;
             case ShuffleRecommendation.Keep:
-                seString.AddUiForeground("Keep", GoodColor);
+                AddForegroundOrText(seString, "Keep", GoodColor);
                 break;
             case ShuffleRecommendation.StrongKeep:
-                seString.AddUiGlow("Strong keep", StrongGlowColor);
+                AddGlowOrText(seString, "Strong keep", StrongGlowColor);
                 break;
             case ShuffleRecommendation.Unavailable:
             default:
-                seString.AddUiForeground("unavailable", ErrorColor);
+                AddForegroundOrText(seString, "unavailable", ErrorColor);
                 return;
         }
 
         seString.AddText($" ({FormatPercentagePointDelta(advice.ThreeLineDelta)} 3 line)");
     }
 
-    private static string FormatPercentagePointDelta(double value)
-        => $"{value * 100:+0.00;-0.00;0.00}pp vs average";
+    private string FormatPercentagePointDelta(double value) {
+        var decimalPlaces = configuration.ProbabilityDecimalPlaces;
+        var format = decimalPlaces == 0
+            ? "+0;-0;0"
+            : $"+0.{new string('0', decimalPlaces)};-0.{new string('0', decimalPlaces)};0.{new string('0', decimalPlaces)}";
+        return (value * 100).ToString(format, CultureInfo.InvariantCulture) + "pp vs average";
+    }
+
+    private void AddForegroundOrText(SeStringBuilder seString, string text, ushort color) {
+        if (configuration.UseColoredJournalText) {
+            seString.AddUiForeground(text, color);
+            return;
+        }
+
+        seString.AddText(text);
+    }
+
+    private void AddGlowOrText(SeStringBuilder seString, string text, ushort color) {
+        if (configuration.UseColoredJournalText) {
+            seString.AddUiGlow(text, color);
+            return;
+        }
+
+        seString.AddText(text);
+    }
+
+    private static void AppendSectionBreak(SeStringBuilder seString, ref bool hasPreviousSection) {
+        if (hasPreviousSection) {
+            seString.AddText("\r");
+            return;
+        }
+
+        hasPreviousSection = true;
+    }
 }
