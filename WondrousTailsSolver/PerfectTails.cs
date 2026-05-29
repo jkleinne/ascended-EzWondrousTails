@@ -171,7 +171,7 @@ internal sealed unsafe partial class PerfectTails {
 
         switch (advice.Recommendation) {
             case ShuffleRecommendation.NeedSecondChance:
-                AddForegroundOrText(seString, "need 2 Second Chance points", NeutralColor);
+                AddForegroundOrText(seString, $"need {WondrousTailsBoardSolver.ShuffleSecondChanceCost} Second Chance points", NeutralColor);
                 return;
             case ShuffleRecommendation.Shuffle:
                 AddForegroundOrText(seString, "Shuffle", WarningColor);
