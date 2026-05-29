@@ -104,7 +104,7 @@ internal sealed unsafe partial class PerfectTails {
 
         if (baseline is not null && configuration.ShowShuffleAdvice) {
             AppendSectionBreak(seString, ref hasPreviousSection);
-            var request = new ShuffleAdviceRequest(values, stickersPlaced, secondChancePoints, ShuffleObjectives.Default);
+            var request = new ShuffleAdviceRequest(values, stickersPlaced, secondChancePoints, configuration.Objective);
             AppendShuffleAdvice(seString, boardSolver.GetShuffleAdvice(request));
         }
 
