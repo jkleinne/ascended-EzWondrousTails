@@ -40,7 +40,7 @@ You can also open the plugin's main window from Dalamud's plugin UI. The setting
 
 ## Development
 
-The solution root is `WondrousTailsSolver.sln`. Plugin source lives in `WondrousTailsSolver/`, with ImGui windows under `WondrousTailsSolver/Ui/`. The Dalamud manifest is `WondrousTailsSolver/ascended-ezwondroustails.json`.
+The solution root is `WondrousTailsSolver.sln`. Plugin source lives in `WondrousTailsSolver/`, with ImGui windows under `WondrousTailsSolver/Ui/`. The Dalamud manifest is `WondrousTailsSolver/ascended-ezwondroustails.json`. The probability and shuffle-advice logic lives in `WondrousTailsSolver.Core/`, a pure library with no Dalamud dependency, with unit tests in `WondrousTailsSolver.Tests/`.
 
 Build with a compatible .NET SDK and local Dalamud development files:
 
@@ -51,10 +51,10 @@ dotnet build --no-restore -c Release WondrousTailsSolver/WondrousTailsSolver.csp
 
 The GitHub Actions build uses .NET `10.0.x`, `Dalamud.NET.Sdk/15.0.0`, and downloads the latest Dalamud distribution into the XIVLauncher development hook path before building.
 
-There is not a dedicated test project yet. When tests are added, run:
+Run the unit tests (these cover `WondrousTailsSolver.Core` and need no Dalamud install):
 
 ```sh
-dotnet test WondrousTailsSolver.sln
+dotnet test WondrousTailsSolver.Tests/WondrousTailsSolver.Tests.csproj
 ```
 
 ## Release
