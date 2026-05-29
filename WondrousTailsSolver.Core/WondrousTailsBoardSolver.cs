@@ -9,14 +9,14 @@ namespace WondrousTailsSolver;
 /// Calculates Wondrous Tails line probabilities from board values so Dalamud
 /// state and UI formatting stay outside the solver.
 /// </summary>
-internal sealed class WondrousTailsBoardSolver {
+public sealed class WondrousTailsBoardSolver {
     public const int CellCount = GridSize * GridSize;
 
     private const int GridSize = 4;
     private const int MaxStickers = 9;
     private const int ShuffleMinimumStickers = 3;
     private const int ShuffleMaximumStickers = 7;
-    private const uint ShuffleSecondChanceCost = 2;
+    public const uint ShuffleSecondChanceCost = 2;
     private const int OutcomeCount = 4;
     private const double ShuffleThreshold = -0.005;
     private const double StrongKeepThreshold = 0.01;
@@ -182,21 +182,21 @@ internal sealed class WondrousTailsBoardSolver {
         => Enumerable.Range(0, GridSize).All(index => MaskHasBit(mask, index, GridSize - 1 - index));
 }
 
-internal readonly record struct LineChances(double OneLine, double TwoLines, double ThreeLines) {
+public readonly record struct LineChances(double OneLine, double TwoLines, double ThreeLines) {
     public static LineChances Error { get; } = new(-1, -1, -1);
 
     public double[] ToArray()
         => [OneLine, TwoLines, ThreeLines];
 }
 
-internal readonly record struct ShuffleAdvice(
+public readonly record struct ShuffleAdvice(
     ShuffleRecommendation Recommendation,
     LineChances Baseline,
     double ThreeLineDelta) {
     public static ShuffleAdvice Unavailable { get; } = new(ShuffleRecommendation.Unavailable, default, 0);
 }
 
-internal enum ShuffleRecommendation {
+public enum ShuffleRecommendation {
     Unavailable,
     NeedSecondChance,
     Shuffle,
