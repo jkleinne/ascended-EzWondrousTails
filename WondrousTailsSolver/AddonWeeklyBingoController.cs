@@ -20,16 +20,6 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
     // back to a content scan would require client-language-aware matching.
     private const uint InstructionTextNodeId = 34;
 
-    private const string ProbabilityPrefix = "Line Chances: ";
-    private const string AveragePrefix = "Shuffle Average: ";
-    private const string AdvicePrefix = "Shuffle Advice: ";
-    private const string ErrorPrefix = "Wondrous Tails Solver: ";
-    private const string AdviceLineContinuation = "line)";
-    private const string AdviceThreeLineContinuation = "3 line)";
-    private const string AdviceDeltaFragment = "pp vs average";
-    private const string SecondChanceContinuationFragment = "Second Chance points";
-    private const string SecondChanceLineContinuation = "Chance points";
-
     // Fallback line spacing in pixels when the addon's text node reports zero.
     // 16px matches the addon's resolved font size in default UI scale.
     private const byte FallbackLineSpacing = 16;
@@ -114,7 +104,7 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
         var currentText = SeString.Parse(node->NodeText).TextValue;
         if (string.IsNullOrEmpty(currentText)) return;
 
-        var baseText = StripPreviousInjection(currentText);
+        var baseText = JournalInjection.ExtractBaseText(currentText, JournalInjection.InjectionMarker);
 
         if (!hasCapturedLayout) {
             capturedOriginalText = baseText;
@@ -138,6 +128,7 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
 
         var builder = new SeStringBuilder();
         builder.AddText(baseText);
+        builder.AddText(JournalInjection.InjectionMarker);
         builder.AddText("\r\r");
         builder.Append(probability);
 
@@ -169,38 +160,6 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
         capturedHeight = NoCapturedHeight;
         capturedTextFlags = default;
         hasCapturedLayout = false;
-    }
-
-    private static string StripPreviousInjection(string text) {
-        var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
-
-        var injectionStart = Array.FindIndex(lines, IsInjectedLine);
-        var baseLines = injectionStart >= 0 ? lines[..injectionStart] : lines;
-        return string.Join("\r", TrimInjectedContinuationLines(baseLines));
-    }
-
-    private static string[] TrimInjectedContinuationLines(string[] lines) {
-        var count = lines.Length;
-        while (count > 0 && IsInjectedContinuationLine(lines[count - 1])) {
-            count--;
-        }
-
-        return count == lines.Length ? lines : lines[..count];
-    }
-
-    private static bool IsInjectedLine(string line)
-        => line.StartsWith(ProbabilityPrefix, StringComparison.Ordinal)
-        || line.StartsWith(AveragePrefix, StringComparison.Ordinal)
-        || line.StartsWith(AdvicePrefix, StringComparison.Ordinal)
-        || line.StartsWith(ErrorPrefix, StringComparison.Ordinal);
-
-    private static bool IsInjectedContinuationLine(string line) {
-        var trimmedLine = line.Trim();
-        return trimmedLine.Equals(AdviceLineContinuation, StringComparison.Ordinal)
-            || trimmedLine.Equals(AdviceThreeLineContinuation, StringComparison.Ordinal)
-            || trimmedLine.Contains(AdviceDeltaFragment, StringComparison.Ordinal)
-            || trimmedLine.Contains(SecondChanceContinuationFragment, StringComparison.Ordinal)
-            || trimmedLine.Equals(SecondChanceLineContinuation, StringComparison.Ordinal);
     }
 
     private static int CountLines(string text)
