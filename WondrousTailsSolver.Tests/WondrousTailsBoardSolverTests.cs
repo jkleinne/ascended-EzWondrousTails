@@ -56,4 +56,17 @@ public class WondrousTailsBoardSolverTests {
         Assert.True(baseline.Value.OneLine >= baseline.Value.TwoLines);
         Assert.True(baseline.Value.TwoLines >= baseline.Value.ThreeLines);
     }
+
+    [Fact]
+    public void CalculateLineChances_RoundsToAtMostFourDecimals() {
+        var solver = new WondrousTailsBoardSolver();
+        // A 5-sticker partial board yields fractional probabilities.
+        var cells = Board(0, 1, 2, 5, 10);
+
+        var chances = solver.CalculateLineChances(cells);
+
+        Assert.Equal(System.Math.Round(chances.OneLine, 4), chances.OneLine);
+        Assert.Equal(System.Math.Round(chances.TwoLines, 4), chances.TwoLines);
+        Assert.Equal(System.Math.Round(chances.ThreeLines, 4), chances.ThreeLines);
+    }
 }

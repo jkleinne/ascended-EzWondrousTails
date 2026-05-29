@@ -83,23 +83,36 @@ public sealed class WondrousTailsBoardSolver {
             return LineChances.Error;
         }
 
+        var raw = CalculateLineChancesRaw(counts);
+        return new LineChances(
+            Math.Round(raw.OneLine, 4),
+            Math.Round(raw.TwoLines, 4),
+            Math.Round(raw.ThreeLines, 4));
+    }
+
+    // Precondition: counts came from a board with counts[0] > 0 (a valid, in-range
+    // mask). Returns unrounded probabilities so callers that aggregate (e.g. the
+    // shuffle baseline) round exactly once at their own boundary and never average
+    // in the LineChances.Error sentinel.
+    private static LineChances CalculateLineChancesRaw(long[] counts) {
         var divisor = (double)counts[0];
         return new LineChances(
-            Math.Round(counts[1] / divisor, 4),
-            Math.Round(counts[2] / divisor, 4),
-            Math.Round(counts[3] / divisor, 4));
+            counts[1] / divisor,
+            counts[2] / divisor,
+            counts[3] / divisor);
     }
 
     private void CalculateShuffleBaselines() {
         for (var stickersPlaced = ShuffleMinimumStickers; stickersPlaced <= ShuffleMaximumStickers; stickersPlaced++) {
-            var masks = Enumerable.Range(0, 1 << CellCount)
+            var raw = Enumerable.Range(0, 1 << CellCount)
                 .Where(mask => BitOperations.PopCount((uint)mask) == stickersPlaced)
+                .Select(mask => CalculateLineChancesRaw(possibleBoards[mask]))
                 .ToArray();
 
             shuffleBaselines[stickersPlaced] = new LineChances(
-                Math.Round(masks.Average(mask => CalculateLineChances(mask).OneLine), 4),
-                Math.Round(masks.Average(mask => CalculateLineChances(mask).TwoLines), 4),
-                Math.Round(masks.Average(mask => CalculateLineChances(mask).ThreeLines), 4));
+                Math.Round(raw.Average(chances => chances.OneLine), 4),
+                Math.Round(raw.Average(chances => chances.TwoLines), 4),
+                Math.Round(raw.Average(chances => chances.ThreeLines), 4));
         }
     }
 
