@@ -23,6 +23,13 @@ internal sealed unsafe class ConfigWindow : Window {
         "2 decimals",
     ];
 
+    private static readonly string[] ObjectiveLabels = [
+        "1 line",
+        "2 lines",
+        "3 lines",
+        "1 & 2 lines",
+    ];
+
     private readonly PluginConfiguration configuration;
     private readonly Action saveConfiguration;
     private readonly PerfectTails perfectTails;
@@ -65,6 +72,14 @@ internal sealed unsafe class ConfigWindow : Window {
         if (ImGui.Combo("Percentage precision", ref selectedPrecision, PrecisionLabels, PrecisionLabels.Length)) {
             configuration.DecimalPlaces = PluginConfiguration.FromDecimalPlaces(selectedPrecision);
             saveConfiguration();
+        }
+
+        if (configuration.ShowShuffleAdvice) {
+            var selectedObjective = PluginConfiguration.ToObjectiveIndex(configuration.Objective);
+            if (ImGui.Combo("Advice objective", ref selectedObjective, ObjectiveLabels, ObjectiveLabels.Length)) {
+                configuration.Objective = PluginConfiguration.FromObjectiveIndex(selectedObjective);
+                saveConfiguration();
+            }
         }
 
         if (ImGui.Button("Reset defaults")) {

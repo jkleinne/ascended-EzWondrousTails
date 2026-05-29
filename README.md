@@ -11,7 +11,7 @@ This is a maintained fork of MidoriKami's archived EzWondrousTails plugin, updat
 * Shows the chance of finishing with one, two, or three Wondrous Tails lines from the current board.
 * Injects probability output directly into the Wondrous Tails journal.
 * Calculates the exact shuffle average for valid shuffle states, based on every board with the same sticker count.
-* Adds shuffle advice that compares the current three-line chance against the exact average.
+* Adds shuffle advice that compares the current board against the exact shuffle average for a configurable objective (1 line, 2 lines, 3 lines, or a 1-and-2-line tradeoff; defaults to 2 lines).
 * Displays the same information in a standalone plugin window when the journal is not open.
 * Shows sticker count, Second Chance points, and a simple board state preview in the standalone window.
 * Provides settings for journal injection, visible probability sections, colored journal text, and percentage precision.
@@ -34,13 +34,13 @@ Open a Wondrous Tails journal in game. The plugin appends three lines to the jou
 
 * `Line Chances`, the current probability of ending with one, two, or three lines.
 * `Shuffle Average`, the exact average line chances for all shuffled boards with the same number of stickers.
-* `Shuffle Advice`, a keep, neutral, or shuffle recommendation based on the current three-line chance compared with the shuffle average.
+* `Shuffle Advice`, a keep, neutral, or shuffle recommendation based on the current board compared with the shuffle average for your chosen objective (set in the settings window).
 
 You can also open the plugin's main window from Dalamud's plugin UI. The settings window lets you enable or disable the journal overlay, choose which probability sections are shown, turn colored journal text on or off, change percentage precision, and view the current journal status.
 
 ## Development
 
-The solution root is `WondrousTailsSolver.sln`. Plugin source lives in `WondrousTailsSolver/`, with ImGui windows under `WondrousTailsSolver/Ui/`. The Dalamud manifest is `WondrousTailsSolver/ascended-ezwondroustails.json`.
+The solution root is `WondrousTailsSolver.sln`. Plugin source lives in `WondrousTailsSolver/`, with ImGui windows under `WondrousTailsSolver/Ui/`. The Dalamud manifest is `WondrousTailsSolver/ascended-ezwondroustails.json`. The probability and shuffle-advice logic lives in `WondrousTailsSolver.Core/`, a pure library with no Dalamud dependency, with unit tests in `WondrousTailsSolver.Tests/`.
 
 Build with a compatible .NET SDK and local Dalamud development files:
 
@@ -51,10 +51,10 @@ dotnet build --no-restore -c Release WondrousTailsSolver/WondrousTailsSolver.csp
 
 The GitHub Actions build uses .NET `10.0.x`, `Dalamud.NET.Sdk/15.0.0`, and downloads the latest Dalamud distribution into the XIVLauncher development hook path before building.
 
-There is not a dedicated test project yet. When tests are added, run:
+Run the unit tests (these cover `WondrousTailsSolver.Core` and need no Dalamud install):
 
 ```sh
-dotnet test WondrousTailsSolver.sln
+dotnet test WondrousTailsSolver.Tests/WondrousTailsSolver.Tests.csproj
 ```
 
 ## Release

@@ -46,6 +46,11 @@ public sealed class PluginConfiguration : IPluginConfiguration {
     /// </summary>
     public ProbabilityPrecision DecimalPlaces { get; set; } = ProbabilityPrecision.TwoDecimalPlaces;
 
+    /// <summary>
+    /// Which line objective the shuffle advice optimizes its keep/shuffle verdict on.
+    /// </summary>
+    public ShuffleObjective Objective { get; set; } = ShuffleObjectives.Default;
+
     internal bool HasAnyDisplaySectionEnabled
         => ShowLineChances || ShowShuffleAverage || ShowShuffleAdvice;
 
@@ -65,11 +70,13 @@ public sealed class PluginConfiguration : IPluginConfiguration {
         ShowShuffleAdvice = true;
         UseColoredJournalText = true;
         DecimalPlaces = ProbabilityPrecision.TwoDecimalPlaces;
+        Objective = ShuffleObjectives.Default;
     }
 
     internal bool Normalize() {
         var originalVersion = Version;
         var originalDecimalPlaces = DecimalPlaces;
+        var originalObjective = Objective;
 
         Version = CurrentVersion;
         DecimalPlaces = DecimalPlaces switch {
@@ -78,8 +85,11 @@ public sealed class PluginConfiguration : IPluginConfiguration {
             ProbabilityPrecision.TwoDecimalPlaces => ProbabilityPrecision.TwoDecimalPlaces,
             _ => ProbabilityPrecision.TwoDecimalPlaces,
         };
+        Objective = ShuffleObjectives.Normalize(Objective);
 
-        return Version != originalVersion || DecimalPlaces != originalDecimalPlaces;
+        return Version != originalVersion
+            || DecimalPlaces != originalDecimalPlaces
+            || Objective != originalObjective;
     }
 
     internal static ProbabilityPrecision FromDecimalPlaces(int decimalPlaces)
@@ -89,6 +99,12 @@ public sealed class PluginConfiguration : IPluginConfiguration {
             TwoDecimalPlaces => ProbabilityPrecision.TwoDecimalPlaces,
             _ => ProbabilityPrecision.TwoDecimalPlaces,
         };
+
+    internal static int ToObjectiveIndex(ShuffleObjective objective)
+        => (int)objective;
+
+    internal static ShuffleObjective FromObjectiveIndex(int index)
+        => ShuffleObjectives.Normalize((ShuffleObjective)index);
 }
 
 /// <summary>
