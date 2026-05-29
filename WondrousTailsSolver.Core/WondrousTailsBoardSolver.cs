@@ -18,8 +18,15 @@ public sealed class WondrousTailsBoardSolver {
     private const int ShuffleMaximumStickers = 7;
     public const uint ShuffleSecondChanceCost = 2;
     private const int OutcomeCount = 4;
-    private const double ShuffleThreshold = -0.005;
-    private const double StrongKeepThreshold = 0.01;
+    // Decision bands applied to (current score - shuffle-average score), in
+    // probability units. The bands are small buffers around parity that bias toward
+    // keeping near the average, because a shuffle costs 2 Second Chance points and is
+    // not worth a marginal gain. Asymmetric on purpose: any positive edge keeps,
+    // while a small negative edge stays Neutral rather than shuffling. Shared across
+    // all objectives for now; the composite score swings about twice as hard, so the
+    // bands are even more approximate for it (per-objective tuning is a future step).
+    private const double ShuffleThreshold = -0.005;   // <= -0.5pp -> Shuffle
+    private const double StrongKeepThreshold = 0.01;  // >= +1.0pp -> Strong keep
 
     private readonly Dictionary<int, long[]> possibleBoards = [];
     private readonly Dictionary<int, LineChances> shuffleBaselines = [];
@@ -53,30 +60,35 @@ public sealed class WondrousTailsBoardSolver {
         => shuffleBaselines.TryGetValue(stickersPlaced, out var baseline) ? baseline : null;
 
     /// <summary>
-    /// Compares the current board against the exact shuffle baseline so the UI
-    /// can explain whether spending Second Chance points is likely worthwhile.
+    /// Compares the current board against the exact shuffle baseline for the requested
+    /// objective so the UI can explain whether spending Second Chance points is worthwhile.
     /// </summary>
-    public ShuffleAdvice GetShuffleAdvice(bool[] cells, int stickersPlaced, uint secondChancePoints) {
-        var baseline = GetShuffleBaseline(stickersPlaced);
+    public ShuffleAdvice GetShuffleAdvice(ShuffleAdviceRequest request) {
+        var baseline = GetShuffleBaseline(request.StickersPlaced);
         if (baseline is null) {
             return ShuffleAdvice.Unavailable;
         }
 
-        if (secondChancePoints < ShuffleSecondChanceCost) {
-            return new ShuffleAdvice(ShuffleRecommendation.NeedSecondChance, baseline.Value, 0);
+        if (request.SecondChancePoints < ShuffleSecondChanceCost) {
+            return new ShuffleAdvice(
+                ShuffleRecommendation.NeedSecondChance, request.CurrentChances, baseline.Value, request.Objective);
         }
 
-        var current = CalculateLineChances(cells);
-        var threeLineDelta = current.ThreeLines - baseline.Value.ThreeLines;
-        var recommendation = threeLineDelta switch {
-            >= StrongKeepThreshold => ShuffleRecommendation.StrongKeep,
-            >= 0 => ShuffleRecommendation.Keep,
-            <= ShuffleThreshold => ShuffleRecommendation.Shuffle,
-            _ => ShuffleRecommendation.Neutral,
-        };
-
-        return new ShuffleAdvice(recommendation, baseline.Value, threeLineDelta);
+        var delta = request.CurrentChances.ScoreFor(request.Objective) - baseline.Value.ScoreFor(request.Objective);
+        return new ShuffleAdvice(
+            RecommendationForDelta(delta), request.CurrentChances, baseline.Value, request.Objective);
     }
+
+    /// <summary>
+    /// Maps a (current - baseline) score delta to a keep/shuffle recommendation. Pure
+    /// policy, exposed for unit testing the band boundaries.
+    /// </summary>
+    public static ShuffleRecommendation RecommendationForDelta(double delta) => delta switch {
+        >= StrongKeepThreshold => ShuffleRecommendation.StrongKeep,
+        >= 0 => ShuffleRecommendation.Keep,
+        <= ShuffleThreshold => ShuffleRecommendation.Shuffle,
+        _ => ShuffleRecommendation.Neutral,
+    };
 
     private LineChances CalculateLineChances(int mask) {
         if (!possibleBoards.TryGetValue(mask, out var counts) || counts[0] == 0) {
@@ -200,14 +212,38 @@ public readonly record struct LineChances(double OneLine, double TwoLines, doubl
 
     public double[] ToArray()
         => [OneLine, TwoLines, ThreeLines];
+
+    /// <summary>
+    /// The probability this objective optimizes. The composite values the first and
+    /// second line equally (equal weight, no subjective reward weighting): it is the
+    /// expected number of line-rewards among the first two, P(>=1) + P(>=2).
+    /// </summary>
+    public double ScoreFor(ShuffleObjective objective) => objective switch {
+        ShuffleObjective.OneLineMax => OneLine,
+        ShuffleObjective.TwoLineMax => TwoLines,
+        ShuffleObjective.ThreeLineMax => ThreeLines,
+        ShuffleObjective.OneAndTwoLineTradeoff => OneLine + TwoLines,
+        _ => TwoLines,
+    };
 }
 
 public readonly record struct ShuffleAdvice(
     ShuffleRecommendation Recommendation,
+    LineChances CurrentChances,
     LineChances Baseline,
-    double ThreeLineDelta) {
-    public static ShuffleAdvice Unavailable { get; } = new(ShuffleRecommendation.Unavailable, default, 0);
+    ShuffleObjective Objective) {
+    public static ShuffleAdvice Unavailable { get; } = new(ShuffleRecommendation.Unavailable, default, default, default);
 }
+
+/// <summary>
+/// Inputs to a shuffle-advice query. <see cref="CurrentChances"/> is supplied by the
+/// caller so line chances are computed once per refresh rather than recomputed here.
+/// </summary>
+public readonly record struct ShuffleAdviceRequest(
+    LineChances CurrentChances,
+    int StickersPlaced,
+    uint SecondChancePoints,
+    ShuffleObjective Objective);
 
 public enum ShuffleRecommendation {
     Unavailable,
@@ -216,4 +252,16 @@ public enum ShuffleRecommendation {
     Neutral,
     Keep,
     StrongKeep,
+}
+
+/// <summary>
+/// What the shuffle advice optimizes its keep/shuffle verdict on. Explicit values
+/// keep persisted config integers stable against reordering; the default
+/// (<see cref="ShuffleObjective.TwoLineMax"/>) is intentionally not the zero member.
+/// </summary>
+public enum ShuffleObjective {
+    OneLineMax = 0,
+    TwoLineMax = 1,
+    ThreeLineMax = 2,
+    OneAndTwoLineTradeoff = 3,
 }

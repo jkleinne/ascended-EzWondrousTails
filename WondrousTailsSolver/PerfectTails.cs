@@ -104,7 +104,8 @@ internal sealed unsafe partial class PerfectTails {
 
         if (baseline is not null && configuration.ShowShuffleAdvice) {
             AppendSectionBreak(seString, ref hasPreviousSection);
-            AppendShuffleAdvice(seString, boardSolver.GetShuffleAdvice(this.GameState, stickersPlaced, secondChancePoints));
+            var request = new ShuffleAdviceRequest(values, stickersPlaced, secondChancePoints, ShuffleObjectives.Default);
+            AppendShuffleAdvice(seString, boardSolver.GetShuffleAdvice(request));
         }
 
         return seString.Build();
@@ -167,7 +168,7 @@ internal sealed unsafe partial class PerfectTails {
     }
 
     private void AppendShuffleAdvice(SeStringBuilder seString, ShuffleAdvice advice) {
-        seString.AddText("Shuffle Advice: ");
+        seString.AddText($"Shuffle Advice ({ObjectiveLabel(advice.Objective)}): ");
 
         switch (advice.Recommendation) {
             case ShuffleRecommendation.NeedSecondChance:
@@ -191,7 +192,28 @@ internal sealed unsafe partial class PerfectTails {
                 return;
         }
 
-        seString.AddText($" ({FormatPercentagePointDelta(advice.ThreeLineDelta)} 3 line)");
+        seString.AddText($" ({FormatObjectiveDelta(advice)})");
+    }
+
+    private static string ObjectiveLabel(ShuffleObjective objective) => objective switch {
+        ShuffleObjective.OneLineMax => "1 line",
+        ShuffleObjective.TwoLineMax => "2 lines",
+        ShuffleObjective.ThreeLineMax => "3 lines",
+        ShuffleObjective.OneAndTwoLineTradeoff => "1 & 2 lines",
+        _ => "2 lines",
+    };
+
+    private string FormatObjectiveDelta(ShuffleAdvice advice) {
+        var current = advice.CurrentChances;
+        var baseline = advice.Baseline;
+        return advice.Objective switch {
+            ShuffleObjective.OneLineMax => $"{FormatPercentagePointDelta(current.OneLine - baseline.OneLine)} 1 line",
+            ShuffleObjective.TwoLineMax => $"{FormatPercentagePointDelta(current.TwoLines - baseline.TwoLines)} 2 line",
+            ShuffleObjective.ThreeLineMax => $"{FormatPercentagePointDelta(current.ThreeLines - baseline.ThreeLines)} 3 line",
+            ShuffleObjective.OneAndTwoLineTradeoff =>
+                $"{FormatPercentagePointDelta(current.OneLine - baseline.OneLine)} 1 line, {FormatPercentagePointDelta(current.TwoLines - baseline.TwoLines)} 2 line",
+            _ => $"{FormatPercentagePointDelta(current.TwoLines - baseline.TwoLines)} 2 line",
+        };
     }
 
     private string FormatPercentagePointDelta(double value) {
@@ -199,7 +221,7 @@ internal sealed unsafe partial class PerfectTails {
         var format = decimalPlaces == 0
             ? "+0;-0;0"
             : $"+0.{new string('0', decimalPlaces)};-0.{new string('0', decimalPlaces)};0.{new string('0', decimalPlaces)}";
-        return (value * 100).ToString(format, CultureInfo.InvariantCulture) + "pp vs average";
+        return (value * 100).ToString(format, CultureInfo.InvariantCulture) + "pp";
     }
 
     private void AddForegroundOrText(SeStringBuilder seString, string text, ushort color) {
