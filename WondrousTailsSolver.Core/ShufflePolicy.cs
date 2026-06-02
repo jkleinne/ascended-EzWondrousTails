@@ -68,7 +68,7 @@ public sealed class ShufflePolicy {
         var score = request.CurrentChances.ScoreFor(request.Objective);
         var shuffleValue = table.Thetas[affordableShuffles - 1];
         var recommendation = VerdictForGap(score - shuffleValue, table.Sigma);
-        return new ShuffleVerdict(recommendation, affordableShuffles, shuffleValue - score);
+        return new ShuffleVerdict(recommendation, affordableShuffles);
     }
 
     /// <summary>
@@ -125,13 +125,11 @@ public sealed class ShufflePolicy {
 
 /// <summary>
 /// Outcome of a shuffle evaluation. <see cref="AffordableShuffles"/> is shown to the player so the
-/// budget-aware verdict is legible; <see cref="ExpectedRewardGain"/> (shuffle value minus current score)
-/// is diagnostic only and never displayed, because reward units are not a percentage.
+/// budget-aware verdict is legible.
 /// </summary>
 public readonly record struct ShuffleVerdict(
     ShuffleRecommendation Recommendation,
-    int AffordableShuffles,
-    double ExpectedRewardGain) {
-    public static ShuffleVerdict Unavailable { get; } = new(ShuffleRecommendation.Unavailable, 0, 0);
-    public static ShuffleVerdict NeedSecondChance { get; } = new(ShuffleRecommendation.NeedSecondChance, 0, 0);
+    int AffordableShuffles) {
+    public static ShuffleVerdict Unavailable { get; } = new(ShuffleRecommendation.Unavailable, 0);
+    public static ShuffleVerdict NeedSecondChance { get; } = new(ShuffleRecommendation.NeedSecondChance, 0);
 }
