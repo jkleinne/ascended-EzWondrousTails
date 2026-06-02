@@ -214,17 +214,12 @@ public readonly record struct LineChances(double OneLine, double TwoLines, doubl
         => [OneLine, TwoLines, ThreeLines];
 
     /// <summary>
-    /// The probability this objective optimizes. The composite values the first and
-    /// second line equally (equal weight, no subjective reward weighting): it is the
-    /// expected number of line-rewards among the first two, P(>=1) + P(>=2).
+    /// The expected-reward score this objective optimizes, computed as its reward weights applied
+    /// to the board's exact-tier probabilities. The four original objectives reproduce their prior
+    /// cumulative scores (verified by tests); reimplemented via <see cref="RewardWeights"/> so the
+    /// shuffle policy and the advice display share one scoring path.
     /// </summary>
-    public double ScoreFor(ShuffleObjective objective) => objective switch {
-        ShuffleObjective.OneLineMax => OneLine,
-        ShuffleObjective.TwoLineMax => TwoLines,
-        ShuffleObjective.ThreeLineMax => ThreeLines,
-        ShuffleObjective.OneAndTwoLineTradeoff => OneLine + TwoLines,
-        _ => TwoLines,
-    };
+    public double ScoreFor(ShuffleObjective objective) => RewardWeights.For(objective).ExpectedReward(this);
 }
 
 public readonly record struct ShuffleAdvice(
@@ -264,4 +259,7 @@ public enum ShuffleObjective {
     TwoLineMax = 1,
     ThreeLineMax = 2,
     OneAndTwoLineTradeoff = 3,
+    // (1,3,9) reward-escalation preset. Contiguous value keeps ConfigWindow's
+    // index<->enum cast valid (PluginConfiguration.ToObjectiveIndex/FromObjectiveIndex).
+    RewardBalanced = 4,
 }

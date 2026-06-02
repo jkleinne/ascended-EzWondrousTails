@@ -10,16 +10,6 @@ public class ShuffleAdviceTests {
         return cells;
     }
 
-    [Fact]
-    public void ScoreFor_SelectsTheObjectiveMetric() {
-        var chances = new LineChances(0.5, 0.3, 0.1);
-
-        Assert.Equal(0.5, chances.ScoreFor(ShuffleObjective.OneLineMax));
-        Assert.Equal(0.3, chances.ScoreFor(ShuffleObjective.TwoLineMax));
-        Assert.Equal(0.1, chances.ScoreFor(ShuffleObjective.ThreeLineMax));
-        Assert.Equal(0.8, chances.ScoreFor(ShuffleObjective.OneAndTwoLineTradeoff), 10);
-    }
-
     [Theory]
     [InlineData(0.01, ShuffleRecommendation.StrongKeep)]
     [InlineData(0.02, ShuffleRecommendation.StrongKeep)]
