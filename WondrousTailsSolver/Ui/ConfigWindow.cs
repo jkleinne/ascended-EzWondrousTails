@@ -28,6 +28,7 @@ internal sealed unsafe class ConfigWindow : Window {
         "2 lines",
         "3 lines",
         "1 & 2 lines",
+        "Reward (balanced)",
     ];
 
     private readonly PluginConfiguration configuration;

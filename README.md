@@ -11,12 +11,12 @@ This is a maintained fork of MidoriKami's archived EzWondrousTails plugin, updat
 * Shows the chance of finishing with one, two, or three Wondrous Tails lines from the current board.
 * Injects probability output directly into the Wondrous Tails journal.
 * Calculates the exact shuffle average for valid shuffle states, based on every board with the same sticker count.
-* Adds shuffle advice that compares the current board against the exact shuffle average for a configurable objective (1 line, 2 lines, 3 lines, or a 1-and-2-line tradeoff; defaults to 2 lines).
+* Adds shuffle advice that decides keep, neutral, or shuffle by comparing the current board against a budget-aware optimal-stopping value: it accounts for how many shuffles your Second Chance points can afford (a re-roll is worth more when you can re-roll again), for a configurable objective (1 line, 2 lines, 3 lines, a 1-and-2-line tradeoff, or a reward-balanced preset; defaults to 2 lines).
 * Displays the same information in a standalone plugin window when the journal is not open.
 * Shows sticker count, Second Chance points, and a simple board state preview in the standalone window.
 * Provides settings for journal injection, visible probability sections, colored journal text, and percentage precision.
 
-Shuffle averages and advice are available while the board has 3 through 7 stickers, matching the range where Wondrous Tails shuffle can be used. If the character has fewer than 2 Second Chance points, the advice reports that requirement instead of recommending a shuffle.
+Shuffle averages and advice are available while the board has 3 through 7 stickers, matching the range where Wondrous Tails shuffle can be used. With fewer than 2 Second Chance points the advice reports that requirement instead of recommending a shuffle.
 
 ## Installation
 
