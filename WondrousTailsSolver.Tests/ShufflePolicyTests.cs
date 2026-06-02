@@ -27,6 +27,12 @@ public class ShufflePolicyTests {
         Assert.Equal(0.75, thetas[1], 10);
     }
 
+    [Fact]
+    public void ComputeShuffleThresholds_NonPositiveBudget_Throws() {
+        Assert.Throws<System.ArgumentOutOfRangeException>(
+            () => ShufflePolicy.ComputeShuffleThresholds(new double[] { 0.5 }, 0));
+    }
+
     [Theory]
     [InlineData(0.30, ShuffleRecommendation.StrongKeep)] // gap >= 0.25*sigma
     [InlineData(0.10, ShuffleRecommendation.Keep)]       // 0 <= gap < 0.25*sigma

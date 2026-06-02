@@ -82,6 +82,10 @@ public sealed class ShufflePolicy {
             throw new ArgumentException("Cannot compute shuffle thresholds from an empty distribution.", nameof(scores));
         }
 
+        if (maxBudget < 1) {
+            throw new ArgumentOutOfRangeException(nameof(maxBudget), "Affordable shuffle budget must be at least 1.");
+        }
+
         var thetas = new double[maxBudget];
         thetas[0] = scores.Average();
         for (var budget = 1; budget < maxBudget; budget++) {
