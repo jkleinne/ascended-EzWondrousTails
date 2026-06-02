@@ -23,12 +23,14 @@ internal sealed partial class PerfectTails {
 
     private readonly PluginConfiguration configuration;
     private readonly WondrousTailsBoardSolver boardSolver;
+    private readonly ShufflePolicy shufflePolicy;
 
     internal readonly bool[] GameState = new bool[WondrousTailsBoardSolver.CellCount];
 
-    internal PerfectTails(PluginConfiguration configuration, WondrousTailsBoardSolver boardSolver) {
+    internal PerfectTails(PluginConfiguration configuration, WondrousTailsBoardSolver boardSolver, ShufflePolicy shufflePolicy) {
         this.configuration = configuration;
         this.boardSolver = boardSolver;
+        this.shufflePolicy = shufflePolicy;
     }
 }
 
@@ -102,10 +104,11 @@ internal sealed unsafe partial class PerfectTails {
             seString.AddText(string.Join(" ", StringFormatDoubles(shuffleBaseline.ToArray())));
         }
 
-        if (baseline is not null && configuration.ShowShuffleAdvice) {
+        if (baseline is { } adviceBaseline && configuration.ShowShuffleAdvice) {
             AppendSectionBreak(seString, ref hasPreviousSection);
             var request = new ShuffleAdviceRequest(values, stickersPlaced, secondChancePoints, configuration.Objective);
-            AppendShuffleAdvice(seString, boardSolver.GetShuffleAdvice(request));
+            var verdict = shufflePolicy.Evaluate(request);
+            AppendShuffleAdvice(seString, verdict, values, adviceBaseline, configuration.Objective);
         }
 
         return seString.Build();
@@ -167,13 +170,27 @@ internal sealed unsafe partial class PerfectTails {
         return seString.Build();
     }
 
-    private void AppendShuffleAdvice(SeStringBuilder seString, ShuffleAdvice advice) {
-        seString.AddText($"Shuffle Advice ({ObjectiveLabel(advice.Objective)}): ");
+    private void AppendShuffleAdvice(
+        SeStringBuilder seString,
+        ShuffleVerdict verdict,
+        LineChances current,
+        LineChances baseline,
+        ShuffleObjective objective) {
+        var label = ObjectiveLabel(objective);
 
-        switch (advice.Recommendation) {
+        switch (verdict.Recommendation) {
             case ShuffleRecommendation.NeedSecondChance:
+                seString.AddText($"Shuffle Advice ({label}): ");
                 AddForegroundOrText(seString, $"need {WondrousTailsBoardSolver.ShuffleSecondChanceCost} Second Chance points", NeutralColor);
                 return;
+            case ShuffleRecommendation.Unavailable:
+                seString.AddText($"Shuffle Advice ({label}): ");
+                AddForegroundOrText(seString, "unavailable", ErrorColor);
+                return;
+        }
+
+        seString.AddText($"Shuffle Advice ({label}, {FormatShuffleCount(verdict.AffordableShuffles)}): ");
+        switch (verdict.Recommendation) {
             case ShuffleRecommendation.Shuffle:
                 AddForegroundOrText(seString, "Shuffle", WarningColor);
                 break;
@@ -186,33 +203,34 @@ internal sealed unsafe partial class PerfectTails {
             case ShuffleRecommendation.StrongKeep:
                 AddGlowOrText(seString, "Strong keep", StrongGlowColor);
                 break;
-            case ShuffleRecommendation.Unavailable:
-            default:
-                AddForegroundOrText(seString, "unavailable", ErrorColor);
-                return;
         }
 
-        seString.AddText($" ({FormatObjectiveDelta(advice)})");
+        seString.AddText($" ({FormatObjectiveDelta(current, baseline, objective)})");
     }
+
+    private static string FormatShuffleCount(int affordableShuffles)
+        => affordableShuffles == 1 ? "1 shuffle" : $"{affordableShuffles} shuffles";
 
     private static string ObjectiveLabel(ShuffleObjective objective) => objective switch {
         ShuffleObjective.OneLineMax => "1 line",
         ShuffleObjective.TwoLineMax => "2 lines",
         ShuffleObjective.ThreeLineMax => "3 lines",
         ShuffleObjective.OneAndTwoLineTradeoff => "1 & 2 lines",
+        ShuffleObjective.RewardBalanced => "Reward balanced",
         _ => "2 lines",
     };
 
-    private string FormatObjectiveDelta(ShuffleAdvice advice) {
-        var current = advice.CurrentChances;
-        var baseline = advice.Baseline;
-        return advice.Objective switch {
-            ShuffleObjective.OneLineMax => $"{FormatPercentagePointDelta(current.OneLine - baseline.OneLine)} 1 line",
-            ShuffleObjective.TwoLineMax => $"{FormatPercentagePointDelta(current.TwoLines - baseline.TwoLines)} 2 line",
-            ShuffleObjective.ThreeLineMax => $"{FormatPercentagePointDelta(current.ThreeLines - baseline.ThreeLines)} 3 line",
-            ShuffleObjective.OneAndTwoLineTradeoff =>
-                $"{FormatPercentagePointDelta(current.OneLine - baseline.OneLine)} 1 line, {FormatPercentagePointDelta(current.TwoLines - baseline.TwoLines)} 2 line",
-            _ => $"{FormatPercentagePointDelta(current.TwoLines - baseline.TwoLines)} 2 line",
+    private string FormatObjectiveDelta(LineChances current, LineChances baseline, ShuffleObjective objective) {
+        var oneLine = FormatPercentagePointDelta(current.OneLine - baseline.OneLine);
+        var twoLine = FormatPercentagePointDelta(current.TwoLines - baseline.TwoLines);
+        var threeLine = FormatPercentagePointDelta(current.ThreeLines - baseline.ThreeLines);
+        return objective switch {
+            ShuffleObjective.OneLineMax => $"{oneLine} 1 line",
+            ShuffleObjective.TwoLineMax => $"{twoLine} 2 line",
+            ShuffleObjective.ThreeLineMax => $"{threeLine} 3 line",
+            ShuffleObjective.OneAndTwoLineTradeoff => $"{oneLine} 1 line, {twoLine} 2 line",
+            ShuffleObjective.RewardBalanced => $"{oneLine} 1 line, {twoLine} 2 line, {threeLine} 3 line",
+            _ => $"{twoLine} 2 line",
         };
     }
 

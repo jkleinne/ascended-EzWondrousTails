@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using WondrousTailsSolver;
 using Xunit;
 
@@ -55,6 +56,21 @@ public class WondrousTailsBoardSolverTests {
         Assert.InRange(baseline.Value.ThreeLines, 0.0, 1.0);
         Assert.True(baseline.Value.OneLine >= baseline.Value.TwoLines);
         Assert.True(baseline.Value.TwoLines >= baseline.Value.ThreeLines);
+    }
+
+    [Fact]
+    public void RawChancesByShuffleStickerCount_CoversShuffleRange_WithAllBoardsPerCount() {
+        var solver = new WondrousTailsBoardSolver();
+
+        var byCount = solver.RawChancesByShuffleStickerCount();
+
+        Assert.Equal(new[] { 3, 4, 5, 6, 7 }, byCount.Keys.OrderBy(stickers => stickers).ToArray());
+        Assert.Equal(560, byCount[3].Count); // C(16,3)
+        foreach (var chances in byCount[5]) {
+            Assert.True(chances.OneLine >= chances.TwoLines);
+            Assert.True(chances.TwoLines >= chances.ThreeLines);
+            Assert.InRange(chances.OneLine, 0.0, 1.0);
+        }
     }
 
     [Fact]
