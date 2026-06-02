@@ -60,6 +60,27 @@ public sealed class WondrousTailsBoardSolver {
         => shuffleBaselines.TryGetValue(stickersPlaced, out var baseline) ? baseline : null;
 
     /// <summary>
+    /// Raw (unrounded) cumulative line chances for every board, bucketed by sticker count over the
+    /// shuffle-eligible range (3-7). Supplies the shuffle policy's per-objective score distributions.
+    /// Unrounded so the policy rounds once at its own boundary, matching <see cref="GetShuffleBaseline"/>.
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<LineChances>> RawChancesByShuffleStickerCount() {
+        var buckets = new Dictionary<int, List<LineChances>>();
+        for (var stickersPlaced = ShuffleMinimumStickers; stickersPlaced <= ShuffleMaximumStickers; stickersPlaced++) {
+            buckets[stickersPlaced] = [];
+        }
+
+        foreach (var (mask, counts) in possibleBoards) {
+            var stickersPlaced = BitOperations.PopCount((uint)mask);
+            if (counts[0] != 0 && buckets.TryGetValue(stickersPlaced, out var bucket)) {
+                bucket.Add(CalculateLineChancesRaw(counts));
+            }
+        }
+
+        return buckets.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<LineChances>)pair.Value);
+    }
+
+    /// <summary>
     /// Compares the current board against the exact shuffle baseline for the requested
     /// objective so the UI can explain whether spending Second Chance points is worthwhile.
     /// </summary>
