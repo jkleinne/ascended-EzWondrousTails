@@ -27,7 +27,9 @@ public sealed class WondrousTailsSolverPlugin : IDalamudPlugin {
             pluginInterface.SavePluginConfig(configuration);
         }
 
-        perfectTails = new PerfectTails(configuration, new WondrousTailsBoardSolver());
+        var boardSolver = new WondrousTailsBoardSolver();
+        var shufflePolicy = new ShufflePolicy(boardSolver.RawChancesByShuffleStickerCount());
+        perfectTails = new PerfectTails(configuration, boardSolver, shufflePolicy);
         addonWeeklyBingoController = new AddonWeeklyBingoController(pluginInterface, perfectTails, configuration);
         mainWindow = new MainWindow(perfectTails);
         configWindow = new ConfigWindow(configuration, SaveConfiguration, perfectTails);

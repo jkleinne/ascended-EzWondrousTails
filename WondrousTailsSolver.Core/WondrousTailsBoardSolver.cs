@@ -18,15 +18,6 @@ public sealed class WondrousTailsBoardSolver {
     private const int ShuffleMaximumStickers = 7;
     public const uint ShuffleSecondChanceCost = 2;
     private const int OutcomeCount = 4;
-    // Decision bands applied to (current score - shuffle-average score), in
-    // probability units. The bands are small buffers around parity that bias toward
-    // keeping near the average, because a shuffle costs 2 Second Chance points and is
-    // not worth a marginal gain. Asymmetric on purpose: any positive edge keeps,
-    // while a small negative edge stays Neutral rather than shuffling. Shared across
-    // all objectives for now; the composite score swings about twice as hard, so the
-    // bands are even more approximate for it (per-objective tuning is a future step).
-    private const double ShuffleThreshold = -0.005;   // <= -0.5pp -> Shuffle
-    private const double StrongKeepThreshold = 0.01;  // >= +1.0pp -> Strong keep
 
     private readonly Dictionary<int, long[]> possibleBoards = [];
     private readonly Dictionary<int, LineChances> shuffleBaselines = [];
@@ -79,37 +70,6 @@ public sealed class WondrousTailsBoardSolver {
 
         return buckets.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<LineChances>)pair.Value);
     }
-
-    /// <summary>
-    /// Compares the current board against the exact shuffle baseline for the requested
-    /// objective so the UI can explain whether spending Second Chance points is worthwhile.
-    /// </summary>
-    public ShuffleAdvice GetShuffleAdvice(ShuffleAdviceRequest request) {
-        var baseline = GetShuffleBaseline(request.StickersPlaced);
-        if (baseline is null) {
-            return ShuffleAdvice.Unavailable;
-        }
-
-        if (request.SecondChancePoints < ShuffleSecondChanceCost) {
-            return new ShuffleAdvice(
-                ShuffleRecommendation.NeedSecondChance, request.CurrentChances, baseline.Value, request.Objective);
-        }
-
-        var delta = request.CurrentChances.ScoreFor(request.Objective) - baseline.Value.ScoreFor(request.Objective);
-        return new ShuffleAdvice(
-            RecommendationForDelta(delta), request.CurrentChances, baseline.Value, request.Objective);
-    }
-
-    /// <summary>
-    /// Maps a (current - baseline) score delta to a keep/shuffle recommendation. Pure
-    /// policy, exposed for unit testing the band boundaries.
-    /// </summary>
-    public static ShuffleRecommendation RecommendationForDelta(double delta) => delta switch {
-        >= StrongKeepThreshold => ShuffleRecommendation.StrongKeep,
-        >= 0 => ShuffleRecommendation.Keep,
-        <= ShuffleThreshold => ShuffleRecommendation.Shuffle,
-        _ => ShuffleRecommendation.Neutral,
-    };
 
     private LineChances CalculateLineChances(int mask) {
         if (!possibleBoards.TryGetValue(mask, out var counts) || counts[0] == 0) {
@@ -241,14 +201,6 @@ public readonly record struct LineChances(double OneLine, double TwoLines, doubl
     /// shuffle policy and the advice display share one scoring path.
     /// </summary>
     public double ScoreFor(ShuffleObjective objective) => RewardWeights.For(objective).ExpectedReward(this);
-}
-
-public readonly record struct ShuffleAdvice(
-    ShuffleRecommendation Recommendation,
-    LineChances CurrentChances,
-    LineChances Baseline,
-    ShuffleObjective Objective) {
-    public static ShuffleAdvice Unavailable { get; } = new(ShuffleRecommendation.Unavailable, default, default, default);
 }
 
 /// <summary>
