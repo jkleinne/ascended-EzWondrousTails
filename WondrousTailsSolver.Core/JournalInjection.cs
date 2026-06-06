@@ -23,4 +23,24 @@ public static class JournalInjection {
         var markerIndex = currentText.IndexOf(marker, StringComparison.Ordinal);
         return markerIndex >= 0 ? currentText[..markerIndex] : currentText;
     }
+
+    /// <summary>
+    /// Returns whether the current node text is game-owned text that should replace
+    /// the captured base text and layout before overlay injection.
+    /// </summary>
+    public static bool ShouldCaptureGameText(
+        string currentText,
+        string baseText,
+        string? capturedGameText,
+        string marker) {
+        if (currentText.Contains(marker, StringComparison.Ordinal)) {
+            return false;
+        }
+
+        if (capturedGameText is null) {
+            return true;
+        }
+
+        return !string.Equals(baseText, capturedGameText, StringComparison.Ordinal);
+    }
 }

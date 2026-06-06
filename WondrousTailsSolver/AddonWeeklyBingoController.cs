@@ -106,11 +106,17 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
 
         var baseText = JournalInjection.ExtractBaseText(currentText, JournalInjection.InjectionMarker);
 
-        if (!hasCapturedLayout) {
-            capturedOriginalText = baseText;
-            capturedHeight = node->GetHeight();
-            capturedTextFlags = node->TextFlags;
-            hasCapturedLayout = true;
+        if (!hasCapturedLayout && currentText.Contains(JournalInjection.InjectionMarker, StringComparison.Ordinal)) {
+            node->SetText(baseText);
+            return;
+        }
+
+        if (JournalInjection.ShouldCaptureGameText(
+            currentText,
+            baseText,
+            capturedOriginalText,
+            JournalInjection.InjectionMarker)) {
+            CaptureGameTextLayout(node, baseText);
         }
 
         if (!configuration.EnableJournalOverlay || !configuration.HasAnyDisplaySectionEnabled) {
@@ -140,6 +146,13 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
         }
 
         node->SetText(builder.Encode());
+    }
+
+    private void CaptureGameTextLayout(AtkTextNode* node, string baseText) {
+        capturedOriginalText = baseText;
+        capturedHeight = node->GetHeight();
+        capturedTextFlags = node->TextFlags;
+        hasCapturedLayout = true;
     }
 
     private void RestoreOriginal(AddonWeeklyBingo* addon) {
