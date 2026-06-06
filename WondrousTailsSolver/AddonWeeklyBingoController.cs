@@ -31,9 +31,11 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
     private readonly PerfectTails perfectTails;
     private readonly PluginConfiguration configuration;
     private string? capturedOriginalText;
+    private string? pendingCleanLayoutText;
     private ushort capturedHeight;
     private TextFlags capturedTextFlags;
     private bool hasCapturedLayout;
+    private bool shouldWaitForCleanLayoutRefresh;
     private bool disposed;
 
     internal AddonWeeklyBingoController(
@@ -105,9 +107,32 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
         if (string.IsNullOrEmpty(currentText)) return;
 
         var baseText = JournalInjection.ExtractBaseText(currentText, JournalInjection.InjectionMarker);
+        var hasStalePluginOutput = JournalInjection.HasStalePluginOutputWithoutMarker(
+            currentText,
+            JournalInjection.InjectionMarker);
 
         if (!hasCapturedLayout && currentText.Contains(JournalInjection.InjectionMarker, StringComparison.Ordinal)) {
             node->SetText(baseText);
+            return;
+        }
+
+        if (!configuration.EnableJournalOverlay || !configuration.HasAnyDisplaySectionEnabled) {
+            if (hasStalePluginOutput) {
+                RestoreCleanTextAfterStaleOutput(node, baseText);
+            }
+            else {
+                RestoreOriginal(addon);
+            }
+
+            return;
+        }
+
+        if (ShouldWaitForCleanLayoutAfterStaleOutput(node, currentText, baseText)) {
+            return;
+        }
+
+        if (hasStalePluginOutput && !string.Equals(baseText, capturedOriginalText, StringComparison.Ordinal)) {
+            RestoreCleanTextAfterStaleOutput(node, baseText);
             return;
         }
 
@@ -117,11 +142,6 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
             capturedOriginalText,
             JournalInjection.InjectionMarker)) {
             CaptureGameTextLayout(node, baseText);
-        }
-
-        if (!configuration.EnableJournalOverlay || !configuration.HasAnyDisplaySectionEnabled) {
-            RestoreOriginal(addon);
-            return;
         }
 
         node->TextFlags |= TextFlags.MultiLine;
@@ -148,32 +168,94 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
         node->SetText(builder.Encode());
     }
 
-    private void CaptureGameTextLayout(AtkTextNode* node, string baseText) {
-        capturedOriginalText = baseText;
-        capturedHeight = node->GetHeight();
-        capturedTextFlags = node->TextFlags;
-        hasCapturedLayout = true;
+    private bool ShouldWaitForCleanLayoutAfterStaleOutput(AtkTextNode* node, string currentText, string baseText) {
+        if (pendingCleanLayoutText is null) {
+            return false;
+        }
+
+        if (JournalInjection.HasStalePluginOutputWithoutMarker(currentText, JournalInjection.InjectionMarker)) {
+            RestoreCleanTextAfterStaleOutput(node, baseText);
+            return true;
+        }
+
+        var isPendingTextStillVisible = !currentText.Contains(JournalInjection.InjectionMarker, StringComparison.Ordinal)
+            && string.Equals(baseText, pendingCleanLayoutText, StringComparison.Ordinal);
+        if (!isPendingTextStillVisible) {
+            ClearPendingStaleOutputRestore();
+            return false;
+        }
+
+        if (shouldWaitForCleanLayoutRefresh) {
+            shouldWaitForCleanLayoutRefresh = false;
+            return true;
+        }
+
+        ClearPendingStaleOutputRestore();
+        return false;
     }
 
-    private void RestoreOriginal(AddonWeeklyBingo* addon) {
-        if (!hasCapturedLayout || capturedOriginalText is null) return;
+    private void RestoreCleanTextAfterStaleOutput(AtkTextNode* node, string baseText) {
+        var canRestoreCapturedLayout = HasCapturedLayoutForText(baseText);
+        if (canRestoreCapturedLayout) {
+            ClearPendingStaleOutputRestore();
+        }
+        else {
+            pendingCleanLayoutText = baseText;
+            shouldWaitForCleanLayoutRefresh = true;
+        }
 
-        var node = addon->GetTextNodeById(InstructionTextNodeId);
-        if (node is null) return;
+        node->SetText(baseText);
+        if (!canRestoreCapturedLayout) {
+            return;
+        }
 
-        node->SetText(capturedOriginalText);
         node->TextFlags = capturedTextFlags;
         if (capturedHeight > NoCapturedHeight) {
             node->SetHeight(capturedHeight);
         }
     }
 
+    private void CaptureGameTextLayout(AtkTextNode* node, string baseText) {
+        capturedOriginalText = baseText;
+        capturedHeight = node->GetHeight();
+        capturedTextFlags = node->TextFlags;
+        hasCapturedLayout = true;
+        ClearPendingStaleOutputRestore();
+    }
+
+    private void RestoreOriginal(AddonWeeklyBingo* addon) {
+        var restoreText = pendingCleanLayoutText ?? capturedOriginalText;
+        if (restoreText is null) return;
+
+        var node = addon->GetTextNodeById(InstructionTextNodeId);
+        if (node is null) return;
+
+        var canRestoreCapturedLayout = HasCapturedLayoutForText(restoreText);
+        node->SetText(restoreText);
+        if (canRestoreCapturedLayout) {
+            node->TextFlags = capturedTextFlags;
+        }
+
+        if (canRestoreCapturedLayout && capturedHeight > NoCapturedHeight) {
+            node->SetHeight(capturedHeight);
+        }
+    }
+
     private void ClearCapturedState() {
         capturedOriginalText = null;
+        ClearPendingStaleOutputRestore();
         capturedHeight = NoCapturedHeight;
         capturedTextFlags = default;
         hasCapturedLayout = false;
     }
+
+    private void ClearPendingStaleOutputRestore() {
+        pendingCleanLayoutText = null;
+        shouldWaitForCleanLayoutRefresh = false;
+    }
+
+    private bool HasCapturedLayoutForText(string text)
+        => hasCapturedLayout && string.Equals(text, capturedOriginalText, StringComparison.Ordinal);
 
     private static int CountLines(string text)
         => Math.Max(MinimumLineCount, text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Length);

@@ -94,13 +94,13 @@ internal sealed unsafe partial class PerfectTails {
 
         if (configuration.ShowLineChances) {
             AppendSectionBreak(seString, ref hasPreviousSection);
-            seString.AddText("Line Chances: ");
+            seString.AddText($"{JournalInjection.LineChancesLabel} ");
             AppendLineChances(seString, values, baseline, valuePayloads);
         }
 
         if (baseline is { } shuffleBaseline && configuration.ShowShuffleAverage) {
             AppendSectionBreak(seString, ref hasPreviousSection);
-            seString.AddText("Shuffle Average: ");
+            seString.AddText($"{JournalInjection.ShuffleAverageLabel} ");
             seString.AddText(string.Join(" ", StringFormatDoubles(shuffleBaseline.ToArray())));
         }
 
@@ -180,16 +180,16 @@ internal sealed unsafe partial class PerfectTails {
 
         switch (verdict.Recommendation) {
             case ShuffleRecommendation.NeedSecondChance:
-                seString.AddText($"Shuffle Advice ({label}): ");
+                seString.AddText($"{JournalInjection.ShuffleAdviceLabel} ({label}): ");
                 AddForegroundOrText(seString, $"need {WondrousTailsBoardSolver.ShuffleSecondChanceCost} Second Chance points", NeutralColor);
                 return;
             case ShuffleRecommendation.Unavailable:
-                seString.AddText($"Shuffle Advice ({label}): ");
+                seString.AddText($"{JournalInjection.ShuffleAdviceLabel} ({label}): ");
                 AddForegroundOrText(seString, "unavailable", ErrorColor);
                 return;
         }
 
-        seString.AddText($"Shuffle Advice ({label}, {FormatShuffleCount(verdict.AffordableShuffles)}): ");
+        seString.AddText($"{JournalInjection.ShuffleAdviceLabel} ({label}, {FormatShuffleCount(verdict.AffordableShuffles)}): ");
         switch (verdict.Recommendation) {
             case ShuffleRecommendation.Shuffle:
                 AddForegroundOrText(seString, "Shuffle", WarningColor);
