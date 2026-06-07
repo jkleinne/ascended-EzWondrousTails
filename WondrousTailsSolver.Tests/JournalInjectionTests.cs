@@ -62,4 +62,9 @@ public class JournalInjectionTests {
         var text = "Complete the listed duties to add stickers.\rOne or more lines of seals have been completed. Deliver the journal to Khloe Aliapoh to receive your reward or continue adventuring.";
         Assert.Equal("Complete the listed duties to add stickers.", JournalInjection.KeepFirstLine(text));
     }
+
+    [Fact]
+    public void KeepFirstLine_LeadingLineBreak_ReturnsEmpty() {
+        Assert.Equal(string.Empty, JournalInjection.KeepFirstLine("\rInstruction."));
+    }
 }
