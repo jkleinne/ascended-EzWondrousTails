@@ -126,8 +126,9 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
             return;
         }
 
+        var instructionText = JournalInjection.KeepFirstLine(baseText);
         var builder = new SeStringBuilder();
-        builder.AddText(baseText);
+        builder.AddText(instructionText);
         builder.AddText(JournalInjection.InjectionMarker);
         builder.AddText("\r\r");
         builder.Append(probability);
