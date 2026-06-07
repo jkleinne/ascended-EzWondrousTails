@@ -16,6 +16,13 @@ public static class JournalInjection {
     public const string InjectionMarker = "\u200b";
 
     /// <summary>
+    /// Characters the Wondrous Tails instruction node uses for line breaks on
+    /// read-back. Shared by the helpers that split or scan that text so the set is
+    /// defined in one place. Covers both '\r' and '\n'.
+    /// </summary>
+    public static readonly char[] LineBreakCharacters = ['\r', '\n'];
+
+    /// <summary>
     /// Returns the game's base instruction text: everything before the first marker,
     /// or the whole string when no marker is present (pristine or changed game text).
     /// </summary>
@@ -23,8 +30,6 @@ public static class JournalInjection {
         var markerIndex = currentText.IndexOf(marker, StringComparison.Ordinal);
         return markerIndex >= 0 ? currentText[..markerIndex] : currentText;
     }
-
-    private static readonly char[] LineBreakCharacters = ['\r', '\n'];
 
     /// <summary>
     /// Returns the first logical line of the instruction text: everything before

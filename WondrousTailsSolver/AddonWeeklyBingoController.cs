@@ -164,7 +164,7 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
     }
 
     private static int CountLines(string text)
-        => Math.Max(MinimumLineCount, text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Length);
+        => Math.Max(MinimumLineCount, text.Split(JournalInjection.LineBreakCharacters, StringSplitOptions.RemoveEmptyEntries).Length);
 
     private static AddonWeeklyBingo* GetOpenAddon() {
         var address = DalamudServices.GameGui.GetAddonByName(AddonName).Address;
