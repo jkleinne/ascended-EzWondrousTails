@@ -60,3 +60,5 @@ dotnet test WondrousTailsSolver.Tests/WondrousTailsSolver.Tests.csproj
 ## Release
 
 Version tags matching `*.*.*` trigger the publish workflow. The workflow builds the plugin, uploads `latest.zip` and `pluginmaster.json` to the GitHub release, then syncs the entry to `jkleinne/ascended-plugins`.
+
+To release to testers first, run the **Publish Testing** workflow manually from the Actions tab with the target version. It publishes a `testing/<version>` prerelease and raises only the testing fields in the hub entry, so the build reaches just the Dalamud users who enabled "Get plugin testing builds" under Settings → Experimental; the stable version stays put. Promote to everyone by pushing the matching `*.*.*` tag, which runs the normal publish above.
