@@ -14,9 +14,14 @@ jobs:
     steps:
       - name: Validate version and set environment
         shell: pwsh
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
         run: |
-          $version = "${{ github.event.inputs.version }}"
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+          # Read the dispatch input from the environment, never interpolate it into
+          # this script's source: ${{ ... }} expands before pwsh parses, so an inline
+          # version string would run before the regex below could reject it.
+          $version = $env:VERSION_INPUT
+          if ($version -notmatch '\A\d+\.\d+\.\d+\z') {
             Write-Error "version must be X.Y.Z (three numeric components), got '$version'"
             exit 1
           }
