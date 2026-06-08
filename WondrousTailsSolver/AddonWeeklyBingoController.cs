@@ -28,13 +28,19 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
     private const byte NoLineSpacing = 0;
     private const ushort NoCapturedHeight = 0;
 
+    // Bounded wait for the framework-thread restore during Dispose. RunOnFrameworkThread
+    // runs the restore inline when already on the framework thread or while the framework
+    // is unloading, so this bound only matters for a pathological off-thread unload with a
+    // stalled framework, where skipping the cosmetic restore is preferable to hanging.
+    private static readonly TimeSpan RestoreTimeout = TimeSpan.FromSeconds(5);
+
     private readonly PerfectTails perfectTails;
     private readonly PluginConfiguration configuration;
     private string? capturedOriginalText;
     private ushort capturedHeight;
     private TextFlags capturedTextFlags;
     private bool hasCapturedLayout;
-    private bool disposed;
+    private volatile bool disposed;
 
     internal AddonWeeklyBingoController(
         IDalamudPluginInterface pluginInterface,
@@ -51,24 +57,20 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
         DalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostRequestedUpdate, AddonName, OnAddonEvent);
         DalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostUpdate, AddonName, OnAddonEvent);
 
-        var current = GetOpenAddon();
-        if (current is not null) {
-            AddonRefresh(current);
-        }
+        DalamudServices.Framework.RunOnFrameworkThread(AttachToOpenAddon);
     }
 
     public void Dispose() {
         if (disposed) return;
+        disposed = true;
 
         DalamudServices.AddonLifecycle.UnregisterListener(OnAddonEvent);
 
-        var current = GetOpenAddon();
-        if (current is not null) {
-            RestoreOriginal(current);
+        if (!DalamudServices.Framework.RunOnFrameworkThread(RestoreOpenAddon).Wait(RestoreTimeout)) {
+            DalamudServices.Log.Warning("Wondrous Tails journal restore timed out; skipping");
         }
 
         ClearCapturedState();
-        disposed = true;
     }
 
     private void OnAddonEvent(AddonEvent type, AddonArgs args) {
@@ -95,6 +97,19 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
         }
 
         UpdateInstructionText(addon);
+    }
+
+    private void AttachToOpenAddon() {
+        try {
+            if (disposed) return;
+
+            var addon = GetOpenAddon();
+            if (addon is not null) {
+                AddonRefresh(addon);
+            }
+        } catch (Exception ex) {
+            DalamudServices.Log.Error(ex, "Initial Wondrous Tails attach failed");
+        }
     }
 
     private void UpdateInstructionText(AddonWeeklyBingo* addon) {
@@ -153,6 +168,17 @@ internal sealed unsafe class AddonWeeklyBingoController : IDisposable {
         node->TextFlags = capturedTextFlags;
         if (capturedHeight > NoCapturedHeight) {
             node->SetHeight(capturedHeight);
+        }
+    }
+
+    private void RestoreOpenAddon() {
+        try {
+            var addon = GetOpenAddon();
+            if (addon is not null) {
+                RestoreOriginal(addon);
+            }
+        } catch (Exception ex) {
+            DalamudServices.Log.Error(ex, "Wondrous Tails journal restore failed");
         }
     }
 

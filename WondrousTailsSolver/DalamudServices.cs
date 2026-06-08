@@ -38,4 +38,18 @@ internal sealed class DalamudServices {
     /// already-open window without waiting for the next setup event.
     /// </summary>
     [PluginService] public static IGameGui GameGui { get; private set; } = null!;
+
+    /// <summary>
+    /// Framework update loop access. Used to marshal native addon-node mutations
+    /// onto the game's main thread. The plugin constructor and <see cref="IDisposable.Dispose"/>
+    /// run on background load/unload threads, where touching a live AtkTextNode
+    /// races the render thread and faults the game.
+    /// </summary>
+    [PluginService] public static IFramework Framework { get; private set; } = null!;
+
+    /// <summary>
+    /// Plugin log sink. Records faults raised inside the deferred framework-thread
+    /// callbacks so that asynchronous work surfaces errors instead of swallowing them.
+    /// </summary>
+    [PluginService] public static IPluginLog Log { get; private set; } = null!;
 }
